@@ -277,3 +277,23 @@ curl -X POST 'http://127.0.0.1:8002/hepan/articles/publish' \
 ```sh
 .venv/bin/python -m pytest -q
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+任务类型                    下游 taskType            结果
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━
+   SUB_ACCOUNT_BASE_WAYBILL    sync_sub_base_waybill    不支持的同步任务类型
+  ──────────────────────────  ───────────────────────  ──────────────────────
+   SUB_ACCOUNT_BILL            sync_sub_site_bill       不支持的同步任务类型
+  ──────────────────────────  ───────────────────────  ──────────────────────
+   SUB_ACCOUNT_TRACK           sync_sub_track           不支持的同步任务类型

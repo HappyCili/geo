@@ -11,6 +11,8 @@ export DB_NAME='DATABASE'
 export DB_CHARSET='utf8mb4'
 export REDIS_URL='redis://127.0.0.1:6379/0'
 export OBSERVABILITY_ACCOUNT_SALT='STABLE_SECRET_AT_LEAST_16_CHARACTERS'
+# 可选：INFO 输出请求摘要；DEBUG 额外输出经脱敏的请求信息和响应预览。
+# export APP_LOG_LEVEL='DEBUG'
 # 可选：当 tb_medium_account.account/password 未配置时用于 CNBlogs 自动登录。
 # export CNBLOGS_USERNAME='USERNAME'
 # export CNBLOGS_PASSWORD='PASSWORD'

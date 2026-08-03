@@ -22,7 +22,13 @@ class AccountRepository:
             text(
                 """
                 SELECT id, platform, status, sync_status, `del`,
-                       cookie_version, refresh_fence, refresh_result, refresh_code
+                       cookie_version, refresh_fence, refresh_result, refresh_code,
+                       CASE
+                           WHEN NULLIF(TRIM(COALESCE(cookie, '')), '') IS NOT NULL
+                             OR NULLIF(TRIM(COALESCE(cookies, '')), '') IS NOT NULL
+                           THEN 1
+                           ELSE 0
+                       END AS cookie_material_available
                 FROM tb_medium_account
                 WHERE id = :account_id AND status = 1 AND `del` = 0
                 """
@@ -42,7 +48,11 @@ class AccountRepository:
             id=int(row["id"]),
             platform=str(row["platform"]),
             status=int(row["status"]),
-            sync_status=int(row["sync_status"]),
+            sync_status=(
+                int(row["sync_status"])
+                if int(row["cookie_material_available"])
+                else 0
+            ),
             deleted=int(row["del"]),
             cookie=None,
             cookies=None,
@@ -60,7 +70,13 @@ class AccountRepository:
             text(
                 """
                 SELECT id, platform, status, sync_status, `del`, cookie, cookies, session_id,
-                       cookie_version, refresh_fence, refresh_result, refresh_code
+                       cookie_version, refresh_fence, refresh_result, refresh_code,
+                       CASE
+                           WHEN NULLIF(TRIM(COALESCE(cookie, '')), '') IS NOT NULL
+                             OR NULLIF(TRIM(COALESCE(cookies, '')), '') IS NOT NULL
+                           THEN 1
+                           ELSE 0
+                       END AS cookie_material_available
                 FROM tb_medium_account
                 WHERE id = :account_id AND status = 1 AND `del` = 0
                 """
@@ -79,7 +95,11 @@ class AccountRepository:
             id=int(row["id"]),
             platform=str(row["platform"]),
             status=int(row["status"]),
-            sync_status=int(row["sync_status"]),
+            sync_status=(
+                int(row["sync_status"])
+                if int(row["cookie_material_available"])
+                else 0
+            ),
             deleted=int(row["del"]),
             cookie=row["cookie"],
             cookies=row["cookies"],

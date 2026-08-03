@@ -18,6 +18,7 @@ from lxml import etree
 from lxml import html as lxml_html
 
 from app.domain import LoginResult, LoginSecret
+from app.utils.request import BaseRequest
 
 
 HEPAN_BASE_URL = "https://www.hepan.com"
@@ -30,6 +31,7 @@ HEPAN_USER_AGENT = (
     "AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36"
 )
 HEPAN_HUMAN_VERIFICATION_MARKER = "宝塔防火墙正在检查您的访问"
+HEPAN_REQUEST_TIMEOUT_SECONDS = 15.0
 LIEJU_ENTRY_URL = "https://hz.lieju.com/"
 LIEJU_PUBLISH_WARMUP_URL = "https://post.lieju.com/"
 LIEJU_USER_AGENT = (
@@ -38,6 +40,30 @@ LIEJU_USER_AGENT = (
 )
 LIEJU_WAF_MARKER = "renderData"
 LIEJU_AUTH_COOKIE = "lieju_passport"
+
+
+async def _send_logged_request(
+    requester: BaseRequest,
+    client: httpx.AsyncClient,
+    method: str,
+    url: str,
+    *,
+    timeout_seconds: float,
+    **kwargs: Any,
+) -> httpx.Response:
+    """Send through the shared logger while preserving a caller-owned session."""
+    return await requester.request(
+        method,
+        url,
+        timeout=timeout_seconds,
+        allow_redirects=True,
+        retry=1,
+        update_cookie=False,
+        log_request_info=False,
+        log_response_info=False,
+        _client=client,
+        **kwargs,
+    )
 
 
 class LoginProvider(Protocol):
@@ -118,6 +144,7 @@ class LiejuLoginProvider:
     ) -> None:
         self._timeout_seconds = timeout_seconds
         self._client_factory = client_factory or httpx.AsyncClient
+        self._requester = BaseRequest()
         self._waf_cookie_solver = waf_cookie_solver or LiejuWafCookieSolver().solve
         self._entry_url = entry_url
         self._publish_warmup_url = publish_warmup_url
@@ -154,8 +181,12 @@ class LiejuLoginProvider:
                     return LoginResult("protocol_error")
                 action, payload = form
                 payload.extend((("username", secret.username), ("password", secret.password)))
-                response = await client.post(
+                response = await _send_logged_request(
+                    self._requester,
+                    client,
+                    "POST",
                     action,
+                    timeout_seconds=self._timeout_seconds,
                     content=urlencode(payload).encode("utf-8"),
                     headers={
                         "Content-Type": "application/x-www-form-urlencoded",
@@ -195,7 +226,13 @@ class LiejuLoginProvider:
         client: httpx.AsyncClient,
         url: str,
     ) -> httpx.Response | None:
-        page = await client.get(url)
+        page = await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
+            url,
+            timeout_seconds=self._timeout_seconds,
+        )
         if not self._is_waf_page(page):
             return page
         host = urlparse(str(page.url)).hostname
@@ -208,7 +245,13 @@ class LiejuLoginProvider:
         except (OSError, ValueError):
             return None
         client.cookies.set("acw_sc__v2", cookie_value, domain=host, path="/")
-        return await client.get(url)
+        return await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
+            url,
+            timeout_seconds=self._timeout_seconds,
+        )
 
     @staticmethod
     def _is_waf_page(response: httpx.Response) -> bool:
@@ -326,89 +369,151 @@ class HepanLoginProvider:
         client_factory: Callable[..., httpx.AsyncClient] | None = None,
     ) -> None:
         self._timeout_seconds = timeout_seconds
+        self._request_timeout_seconds = min(
+            timeout_seconds, HEPAN_REQUEST_TIMEOUT_SECONDS
+        )
         self._client_factory = client_factory or httpx.AsyncClient
+        self._requester = BaseRequest()
 
     async def login(self, secret: LoginSecret) -> LoginResult:
         try:
-            async with self._client_factory(
-                headers={"User-Agent": HEPAN_USER_AGENT},
+            return await asyncio.wait_for(
+                self._login_with_session(secret),
                 timeout=self._timeout_seconds,
-                follow_redirects=True,
-            ) as client:
-                page, challenge_required = await self._load_login_page(client)
-                if challenge_required:
-                    return LoginResult("captcha_required")
-                if page.status_code >= 500:
-                    return LoginResult("network_error")
-                if page.is_error:
-                    return LoginResult("protocol_error")
-                context = self._parse_login_context(page.content)
-                if context is None:
-                    return LoginResult("protocol_error")
-                formhash, version = context
-                response = await client.post(
-                    HEPAN_LOGIN_AJAX_URL,
-                    params={
-                        "id": "it618_members:ajax",
-                        "ac": "login",
-                        "formhash": formhash,
-                    },
-                    data={
-                        "version": version,
-                        "logintype": "1",
-                        "userlogintype": "2",
-                        "username": secret.username,
-                        "password": secret.password,
-                        "usertelcode": "",
-                        "userquestionid": "0",
-                        "useranswer": "",
-                    },
-                    headers={
-                        "Referer": HEPAN_LOGIN_PAGE_URL,
-                        "X-Requested-With": "XMLHttpRequest",
-                    },
+            )
+        except (asyncio.TimeoutError, httpx.RequestError):
+            return LoginResult("network_error")
+
+    async def _login_with_session(self, secret: LoginSecret) -> LoginResult:
+        async with self._client_factory(
+            headers={"User-Agent": HEPAN_USER_AGENT},
+            timeout=self._request_timeout_seconds,
+            follow_redirects=True,
+        ) as client:
+            page, challenge_required = await self._load_login_page(client)
+            if challenge_required:
+                return LoginResult("captcha_required")
+            if page.status_code >= 500:
+                return LoginResult("network_error")
+            if page.is_error:
+                return LoginResult("protocol_error")
+            context = self._parse_login_context(page.content)
+            if context is None:
+                return LoginResult("protocol_error")
+            formhash, version = context
+            response = await _send_logged_request(
+                self._requester,
+                client,
+                "POST",
+                HEPAN_LOGIN_AJAX_URL,
+                timeout_seconds=self._request_timeout_seconds,
+                params={
+                    "id": "it618_members:ajax",
+                    "ac": "login",
+                    "formhash": formhash,
+                },
+                data={
+                    "version": version,
+                    "logintype": "1",
+                    "userlogintype": "2",
+                    "username": secret.username,
+                    "password": secret.password,
+                    "usertelcode": "",
+                    "userquestionid": "0",
+                    "useranswer": "",
+                },
+                headers={
+                    "Accept": "text/html, */*; q=0.01",
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "Origin": HEPAN_BASE_URL,
+                    "Referer": str(page.url),
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+            )
+            if response.status_code >= 500:
+                return LoginResult("network_error")
+            if self._is_human_verification(response):
+                return LoginResult("captcha_required")
+            if response.is_error:
+                return LoginResult(
+                    self._failure_kind(response.text, status_code=response.status_code)
                 )
-        except httpx.RequestError:
-            return LoginResult("network_error")
+            if not self._is_success(response.text):
+                return LoginResult(self._failure_kind(response.text))
 
-        if response.status_code >= 500:
-            return LoginResult("network_error")
-        if response.is_error:
-            return LoginResult("protocol_error")
-        if not self._is_success(response.text):
-            return LoginResult(self._failure_kind(response.text))
-
-        cookies = dict(client.cookies.items())
-        if not cookies:
-            return LoginResult("protocol_error")
-        cookie_header = "; ".join(f"{name}={value}" for name, value in cookies.items())
-        session_id = next(
-            (value for name, value in cookies.items() if name.lower().endswith("sid")),
-            None,
-        )
-        return LoginResult(
-            "success",
-            cookies=cookies,
-            cookie_header=cookie_header,
-            session_id=session_id,
-        )
+            cookies = dict(client.cookies.items())
+            if not cookies:
+                return LoginResult("protocol_error")
+            cookie_header = "; ".join(
+                f"{name}={value}" for name, value in cookies.items()
+            )
+            session_id = next(
+                (value for name, value in cookies.items() if name.lower().endswith("sid")),
+                None,
+            )
+            return LoginResult(
+                "success",
+                cookies=cookies,
+                cookie_header=cookie_header,
+                session_id=session_id,
+            )
 
     async def _load_login_page(
         self,
         client: httpx.AsyncClient,
     ) -> tuple[httpx.Response, bool]:
-        page = await client.get(HEPAN_LOGIN_PAGE_URL)
+        page = await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
+            HEPAN_LOGIN_PAGE_URL,
+            timeout_seconds=self._request_timeout_seconds,
+        )
+        if self._is_client_reload_page(page):
+            page = await _send_logged_request(
+                self._requester,
+                client,
+                "GET",
+                HEPAN_LOGIN_PAGE_URL,
+                timeout_seconds=self._request_timeout_seconds,
+            )
+            if self._is_client_reload_page(page):
+                return page, True
         if not self._is_human_verification(page):
             return page, False
         if not await self._complete_human_verification(client, page):
             return page, True
-        return await client.get(HEPAN_LOGIN_PAGE_URL), False
+        page = await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
+            HEPAN_LOGIN_PAGE_URL,
+            timeout_seconds=self._request_timeout_seconds,
+        )
+        return page, self._is_human_verification(page)
 
     @staticmethod
-    def _is_human_verification(response: httpx.Response) -> bool:
-        return (
-            response.status_code == 403
-            and HEPAN_HUMAN_VERIFICATION_MARKER in response.text
+    def _is_client_reload_page(response: httpx.Response) -> bool:
+        if response.status_code != 403:
+            return False
+        match = re.search(
+            r"""window\.location(?:\.href)?\s*=\s*["'](?P<target>[^"']+)["']""",
+            response.text,
+            re.IGNORECASE,
+        )
+        return bool(
+            match
+            and urljoin(str(response.url), match.group("target")) == HEPAN_LOGIN_PAGE_URL
+        )
+
+    @classmethod
+    def _is_human_verification(cls, response: httpx.Response) -> bool:
+        return cls._has_human_verification_marker(response.text)
+
+    @staticmethod
+    def _has_human_verification_marker(response_text: str) -> bool:
+        return HEPAN_HUMAN_VERIFICATION_MARKER in response_text or bool(
+            re.search(r"<script[^>]+src=[\"'][^\"']*renji_", response_text, re.IGNORECASE)
         )
 
     async def _complete_human_verification(
@@ -422,8 +527,12 @@ class HepanLoginProvider:
         )
         if script_match is None:
             return False
-        script_response = await client.get(
+        script_response = await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
             urljoin(str(challenge_page.url), script_match.group("src")),
+            timeout_seconds=self._request_timeout_seconds,
             headers={"Referer": str(challenge_page.url)},
         )
         if script_response.is_error:
@@ -435,8 +544,12 @@ class HepanLoginProvider:
         proof = hashlib.md5(
             "".join(str(ord(character)) for character in value).encode("utf-8")
         ).hexdigest()
-        verification = await client.get(
+        verification = await _send_logged_request(
+            self._requester,
+            client,
+            "GET",
             urljoin(str(challenge_page.url), verify_path),
+            timeout_seconds=self._request_timeout_seconds,
             params={"type": challenge_type, "key": key, "value": proof},
             headers={
                 "Referer": str(challenge_page.url),
@@ -450,20 +563,38 @@ class HepanLoginProvider:
         script: str,
     ) -> tuple[str, str, str, str] | None:
         key_match = re.search(
-            r'var\s+key\s*=\s*"(?P<key>[^"]+)"\s*,\s*value\s*=\s*"(?P<value>[^"]+)"',
+            r"(?:var|let|const)\s+key\s*=\s*(?P<quote>[\"'])(?P<key>[^\"']+)"
+            r"(?P=quote)\s*[;,]",
             script,
         )
+        value_match = re.search(
+            r"(?:var|let|const)\s+value\s*=\s*(?P<quote>[\"'])(?P<value>[^\"']+)"
+            r"(?P=quote)",
+            script,
+        )
+        if key_match is None:
+            key_match = re.search(
+                r"\bkey\s*=\s*(?P<quote>[\"'])(?P<key>[^\"']+)(?P=quote)",
+                script,
+            )
+        if value_match is None:
+            value_match = re.search(
+                r"\bvalue\s*=\s*(?P<quote>[\"'])(?P<value>[^\"']+)(?P=quote)",
+                script,
+            )
         verification_match = re.search(
-            r'c\.get\(\s*"(?P<path>/[^"?]+)\?type=(?P<type>[^"&]+)&key="\+key\+"&value="\+md5encode',
+            r"[\"'](?P<path>/[^\"'?]+)\?type=(?P<type>[^\"'&]+)&key=[\"']"
+            r"\s*\+\s*key\s*\+\s*[\"']&value=[\"']\s*\+\s*md5encode",
             script,
+            re.IGNORECASE,
         )
-        if key_match is None or verification_match is None:
+        if key_match is None or value_match is None or verification_match is None:
             return None
         return (
             verification_match.group("path"),
             verification_match.group("type"),
             key_match.group("key"),
-            key_match.group("value"),
+            value_match.group("value"),
         )
 
     @staticmethod
@@ -474,6 +605,8 @@ class HepanLoginProvider:
             return None
         formhashes = document.xpath("//input[@name='formhash']/@value")
         versions = document.xpath("//form[@id='it618_login']//input[@name='version']/@value")
+        if not versions:
+            versions = document.xpath("//input[@name='version']/@value")
         if not formhashes or not versions:
             return None
         formhash = str(formhashes[0]).strip()
@@ -488,9 +621,14 @@ class HepanLoginProvider:
         ) or 'class="help"' in response_text
 
     @staticmethod
-    def _failure_kind(response_text: str) -> str:
+    def _failure_kind(response_text: str, *, status_code: int | None = None) -> str:
         normalized = response_text.lower()
-        if "captcha" in normalized or "验证码" in response_text:
+        if (
+            "captcha" in normalized
+            or "验证码" in response_text
+            or HepanLoginProvider._has_human_verification_marker(response_text)
+            or status_code in {401, 403, 429}
+        ):
             return "captcha_required"
         return "login_expired"
 

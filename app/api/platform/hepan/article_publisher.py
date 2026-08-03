@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from typing import Any
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import httpx
 import markdown
@@ -10,7 +10,12 @@ from lxml import html as lxml_html
 
 from app.config import get_settings
 from app.domain import Credentials, PlatformFieldValue, PublishResult
-from app.errors import LoginExpiredError, PublisherConfigurationError, UpstreamPublishError
+from app.errors import (
+    CaptchaRequiredError,
+    LoginExpiredError,
+    PublisherConfigurationError,
+    UpstreamPublishError,
+)
 from app.utils.publisher_contract import ArticlePublisher
 from app.schemas import ContentType
 
@@ -18,6 +23,7 @@ from app.schemas import ContentType
 BASE_URL = "https://www.hepan.com"
 PUBLISH_URL = f"{BASE_URL}/portal.php"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36"
+HUMAN_VERIFICATION_MARKER = "宝塔防火墙正在检查您的访问"
 
 
 class HepanPublisher(ArticlePublisher):
@@ -51,12 +57,48 @@ class HepanPublisher(ArticlePublisher):
         return bool(document.xpath("//form[contains(@action, 'login') or @id='loginform']"))
 
     @staticmethod
+    def _is_human_verification_response(response: httpx.Response) -> bool:
+        response_text = response.content.decode("utf-8", errors="replace")
+        return (
+            HUMAN_VERIFICATION_MARKER in response_text
+            or "renji_" in response_text.lower()
+        )
+
+    @staticmethod
+    def _failure_message(raw_html: bytes, title: str) -> str | None:
+        document = lxml_html.fromstring(raw_html.decode("utf-8", errors="replace"))
+        messages = document.xpath(
+            "//*[@id='messagetext' or contains(concat(' ', normalize-space(@class), ' '), ' alert_info ')]"
+        )
+        if not messages:
+            return None
+        message = " ".join(messages[0].text_content().split())
+        if not message:
+            return None
+        return message.replace(title, "<submitted-title>")[:200]
+
+    @staticmethod
     def _parse_result(raw_html: bytes, response_url: str) -> tuple[bool, str | None, str]:
         document = lxml_html.fromstring(raw_html.decode("utf-8", errors="replace"))
         result_text = " ".join(document.text_content().split())
         edit_links = document.xpath("//a[contains(@href, 'op=edit') and contains(@href, 'aid=')]/@href")
-        article_url = urljoin(response_url, str(edit_links[0])) if edit_links else None
-        return "发布文章成功" in result_text, article_url, result_text
+        response_query = parse_qs(urlparse(response_url).query)
+        response_is_edit_page = (
+            response_query.get("op") == ["edit"]
+            and bool(response_query.get("aid"))
+        )
+        article_url = (
+            response_url
+            if response_is_edit_page
+            else urljoin(response_url, str(edit_links[0])) if edit_links else None
+        )
+        success_markers = ("发布文章成功", "文章发布成功", "发布成功")
+        return (
+            any(marker in result_text for marker in success_markers)
+            or article_url is not None,
+            article_url,
+            result_text,
+        )
 
     @staticmethod
     def _build_parts(title: str, category_id: str, content: str, formhash: str) -> list[tuple[str, tuple[Any, ...]]]:
@@ -111,7 +153,11 @@ class HepanPublisher(ArticlePublisher):
         if not category_id or "," in category_id:
             raise PublisherConfigurationError(f"Hepan 分类 {category} 必须配置为单个分类 ID")
 
-        headers = {"Cookie": credentials.cookie_header, "User-Agent": USER_AGENT}
+        headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Cookie": credentials.cookie_header,
+            "User-Agent": USER_AGENT,
+        }
         params = {"mod": "portalcp", "ac": "article", "catid": category_id}
         try:
             async with self._client_factory(headers=headers, timeout=self._timeout) as client:
@@ -133,11 +179,17 @@ class HepanPublisher(ArticlePublisher):
                     PUBLISH_URL,
                     params={"mod": "portalcp", "ac": "article"},
                     files=parts,
+                    headers={
+                        "Origin": BASE_URL,
+                        "Referer": str(edit_response.url),
+                    },
                     allow_redirects=True,
                     _client=client,
                 )
                 if self._is_login_response(publish_response):
                     raise LoginExpiredError("Hepan 登录态已过期")
+                if self._is_human_verification_response(publish_response):
+                    raise CaptchaRequiredError("Hepan 发布请求需要验证码")
                 publish_response.raise_for_status()
         except LoginExpiredError:
             raise
@@ -147,7 +199,10 @@ class HepanPublisher(ArticlePublisher):
 
         success, article_url, _ = self._parse_result(publish_response.content, str(publish_response.url))
         if not success:
-            raise UpstreamPublishError("Hepan 未确认发布成功", publish_response.status_code)
+            message = "Hepan 未确认发布成功"
+            if failure_message := self._failure_message(publish_response.content, title):
+                message = f"{message}: {failure_message}"
+            raise UpstreamPublishError(message, publish_response.status_code)
         return PublishResult(
             success=True,
             http_status=publish_response.status_code,

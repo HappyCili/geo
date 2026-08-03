@@ -9,6 +9,8 @@ from typing import Any, Optional, Tuple, Union
 
 import httpx
 
+from app.logging_config import configure_app_logging
+
 
 logger = logging.getLogger("app.request")
 
@@ -123,6 +125,7 @@ class BaseRequest:
         *,
         client_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
+        configure_app_logging()
         self._client_factory = client_factory or httpx.AsyncClient
         self._client_kwargs = dict(client_kwargs or {})
         self._client: Any | None = None
@@ -420,6 +423,7 @@ class SyncRequestAdapter:
         *,
         client_kwargs: Mapping[str, Any] | None = None,
     ) -> None:
+        configure_app_logging()
         self._client_factory = client_factory or httpx.Client
         self._client_kwargs = dict(client_kwargs or {})
         self._client: Any | None = None
