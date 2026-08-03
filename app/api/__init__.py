@@ -1,7 +1,7 @@
 from app.api.base import get_publish_service
-from app.api.site.cnblogs.publish import router as cnblogs_router
-from app.api.site.hepan.publish import router as hepan_router
-from app.api.site.lieju.publish import router as lieju_router
+from app.api.platform.cnblogs.article_publish_router import router as cnblogs_router
+from app.api.platform.hepan.article_publish_router import router as hepan_router
+from app.api.platform.lieju.article_publish_router import router as lieju_router
 from fastapi import APIRouter
 
 router = APIRouter()

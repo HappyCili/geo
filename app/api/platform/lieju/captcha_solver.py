@@ -27,7 +27,7 @@ import httpx
 
 from app.config import Settings, get_settings
 from app.errors import PublisherConfigurationError, UpstreamPublishError
-from app.models.lieju_tdc_runtime import encode_tdc_payload
+from app.api.platform.lieju.tdc_runtime import encode_tdc_payload
 from app.utils.request import BaseRequest
 
 

@@ -11,13 +11,17 @@ from app.errors import (
     PlatformMismatchError,
     RefreshUnavailableError,
 )
-from app.models.registry import PublisherRegistry
 from app.repositories import AccountRepository, CategoryRepository
 from app.schemas import PublishArticleRequest
 from app.services.cookie_store import CookieStore
-from app.services.login import CnblogsLoginProvider
+from app.services.login import (
+    CnblogsLoginProvider,
+    HepanLoginProvider,
+    LiejuLoginProvider,
+)
 from app.services.refresh import RefreshCoordinator
 from app.services.unit_of_work import UnitOfWork
+from app.utils.publisher_registry import PublisherRegistry
 
 
 class PublishOrchestrator:
@@ -47,7 +51,11 @@ class PublishOrchestrator:
         self._unit_of_work = unit_of_work
         self._accounts = accounts
         self._categories = categories
-        self._registry = registry or PublisherRegistry()
+        if registry is None:
+            from app.api.platform import create_default_publisher_registry
+
+            registry = create_default_publisher_registry()
+        self._registry = registry
 
         if cookie_store is None:
             redis_client = self._create_redis_client() if session is not None else None
@@ -70,15 +78,31 @@ class PublishOrchestrator:
             from app.config import get_settings
 
             settings = get_settings()
+            fallback_login_secret = self._configured_login_secret(settings)
+            fallback_login_secrets = (
+                {"cnblogs": fallback_login_secret}
+                if fallback_login_secret is not None
+                else None
+            )
             refresh = RefreshCoordinator(
                 accounts,
                 cookie_store,
-                CnblogsLoginProvider(timeout_seconds=settings.login_timeout_seconds),
+                {
+                    "cnblogs": CnblogsLoginProvider(
+                        timeout_seconds=settings.login_timeout_seconds
+                    ),
+                    "hepan": HepanLoginProvider(
+                        timeout_seconds=settings.login_timeout_seconds
+                    ),
+                    "lieju": LiejuLoginProvider(
+                        timeout_seconds=settings.login_timeout_seconds
+                    ),
+                },
                 cookie_store._redis,
                 lock_ttl_seconds=settings.refresh_lock_ttl_seconds,
                 renew_seconds=settings.refresh_lock_renew_seconds,
                 wait_seconds=settings.refresh_wait_seconds,
-                fallback_login_secret=self._configured_login_secret(settings),
+                fallback_login_secrets=fallback_login_secrets,
             )
         self._refresh = refresh
 
@@ -217,7 +241,7 @@ class PublishOrchestrator:
         request: PublishArticleRequest,
         category_value: str,
     ) -> PublishResult:
-        if account.platform != "cnblogs" or self._refresh is None:
+        if account.platform not in {"cnblogs", "hepan", "lieju"} or self._refresh is None:
             raise LoginExpiredError("媒体账号登录态已过期")
 
         async def retry(
@@ -272,7 +296,7 @@ class PublishOrchestrator:
     async def _refresh_credentials(
         self, account: MediumAccount,
     ) -> tuple[MediumAccount, Credentials]:
-        if account.platform != "cnblogs" or self._refresh is None:
+        if account.platform not in {"cnblogs", "hepan", "lieju"} or self._refresh is None:
             raise LoginExpiredError("媒体账号登录态已过期")
         result = await self._refresh.refresh(account)
         if not isinstance(result, tuple):

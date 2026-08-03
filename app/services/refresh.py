@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -41,7 +41,7 @@ class RefreshCoordinator:
         self,
         accounts: AccountRepository,
         cookies: CookieStore,
-        login: LoginProvider,
+        login: LoginProvider | Mapping[str, LoginProvider],
         redis_client: Any | None,
         *,
         lock_ttl_seconds: int,
@@ -49,6 +49,7 @@ class RefreshCoordinator:
         wait_seconds: float,
         telemetry: RefreshTelemetry | None = None,
         fallback_login_secret: LoginSecret | None = None,
+        fallback_login_secrets: Mapping[str, LoginSecret] | None = None,
     ) -> None:
         self._accounts = accounts
         self._cookies = cookies
@@ -59,6 +60,7 @@ class RefreshCoordinator:
         self._wait_seconds = wait_seconds
         self._telemetry = telemetry or cookies.telemetry
         self._fallback_login_secret = fallback_login_secret
+        self._fallback_login_secrets = dict(fallback_login_secrets or {})
 
     @staticmethod
     def _lock_key(account_id: int) -> str:
@@ -147,7 +149,11 @@ class RefreshCoordinator:
             try:
                 secret = await self._accounts.get_login_secret(account.id)
             except LoginCredentialsUnavailableError:
-                if self._fallback_login_secret is None:
+                fallback_login_secret = self._fallback_login_secrets.get(
+                    account.platform,
+                    self._fallback_login_secret,
+                )
+                if fallback_login_secret is None:
                     raise
                 self._telemetry.emit(
                     "refresh_login_secret_fallback",
@@ -157,8 +163,11 @@ class RefreshCoordinator:
                     fence=fence,
                     result="configured_fallback",
                 )
-                secret = self._fallback_login_secret
-            login_task = asyncio.create_task(self._login.login(secret))
+                secret = fallback_login_secret
+            login = self._login_for_platform(account.platform)
+            if login is None:
+                return await self._persist_failure(account, fence, "refresh_unavailable")
+            login_task = asyncio.create_task(login.login(secret))
             lost_task = asyncio.create_task(lost.wait())
             done, _ = await asyncio.wait({login_task, lost_task}, return_when=asyncio.FIRST_COMPLETED)
             if lost_task in done:
@@ -245,7 +254,7 @@ class RefreshCoordinator:
                 return await retry(refreshed_account, credentials)
             except LoginExpiredError:
                 await self._persist_failure(refreshed_account, fence, "login_expired")
-                raise LoginExpiredError("CNBlogs 登录态仍然失效")
+                raise LoginExpiredError("媒体账号登录态仍然失效")
         finally:
             for task in (login_task, lost_task):
                 if task is not None and not task.done():
@@ -257,6 +266,11 @@ class RefreshCoordinator:
             renew_task.cancel()
             await asyncio.gather(renew_task, return_exceptions=True)
             await self._release(account, token)
+
+    def _login_for_platform(self, platform: str) -> LoginProvider | None:
+        if isinstance(self._login, Mapping):
+            return self._login.get(platform)
+        return self._login
 
     async def _renew(self, account: MediumAccount, token: str, lost: asyncio.Event) -> None:
         while True:

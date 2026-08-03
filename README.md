@@ -19,6 +19,21 @@ export OBSERVABILITY_ACCOUNT_SALT='STABLE_SECRET_AT_LEAST_16_CHARACTERS'
 `OBSERVABILITY_ACCOUNT_SALT` 用于生成日志中的账号关联值；未设置时使用数据库密码作为
 HMAC 密钥。日志不会记录原始账号 ID、Cookie、账号名或密码。
 
+## Hepan 登录刷新
+
+当 `tb_medium_account.platform` 为 `hepan` 时，登录刷新直接从同一行读取 `account` 与
+`password`。`account` 必须是已绑定的手机号；服务会以 Hepan 的“手机号 / 密码登录”模式换取
+新的 Cookie 并写回数据库和 Redis。登录页出现宝塔人机验证时，服务会在同一 HTTP 会话中执行
+页面提供的验证请求后重试登录页。Hepan 不使用环境变量登录凭据回退，避免跨平台误用账号。
+
+## Lieju 登录刷新
+
+当 `tb_medium_account.platform` 为 `lieju` 时，刷新从同一行读取手机号 `account` 和密码
+`password`。服务先进入 `https://hz.lieju.com/` 发现当前登录页，再用手机号填充当前的
+用户名/密码表单；Node.js 仅执行页面返回的 WAF Cookie 计算，不接收账号密码。登录成功后，
+服务会预热 `post.lieju.com` 的发布域，将 `lieju_passport`、认证 Cookie 与发布域 WAF Cookie
+一起写回 MySQL 和 Redis。Lieju 不使用环境变量凭据回退。
+
 执行 [schema/tb_medium_platform_category.sql](schema/tb_medium_platform_category.sql)，并为每个平台维护分类记录。例如：
 
 ```sql

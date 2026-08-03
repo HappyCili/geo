@@ -32,12 +32,12 @@ from app.errors import (
     PublisherConfigurationError,
     UpstreamPublishError,
 )
-from app.models.base import ArticlePublisher
-from app.models.lieju_captcha import (
+from app.api.platform.lieju.captcha_solver import (
     LiejuCaptchaSolver,
     LiejuPurePythonCaptchaFlow,
 )
 from app.schemas import ContentType
+from app.utils.publisher_contract import ArticlePublisher
 
 
 BASE_URL = "https://post.lieju.com"

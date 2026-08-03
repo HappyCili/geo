@@ -30,7 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from app.credentials import get_credentials
 from app.db import SessionLocal
 from app.domain import MediumAccount
-from app.models.lieju import LiejuPublisher
+from app.api.platform.lieju.article_publisher import LiejuPublisher
 from app.schemas import ContentType
 
 

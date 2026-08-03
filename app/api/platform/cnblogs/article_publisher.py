@@ -11,7 +11,7 @@ import httpx
 from app.config import get_settings
 from app.domain import Credentials, PlatformFieldValue, PublishResult
 from app.errors import LoginExpiredError, PublisherConfigurationError, UpstreamPublishError
-from app.models.base import ArticlePublisher
+from app.utils.publisher_contract import ArticlePublisher
 from app.schemas import ContentType
 
 
