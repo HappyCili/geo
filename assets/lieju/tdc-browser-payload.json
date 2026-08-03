@@ -1,0 +1,1122 @@
+{
+  "cd": [
+    {
+      "_state": 0,
+      "canvas": "43e7fb4696e60a1c064a69418408349465b2cedc69cc8126fb7acc9f1f0a910a",
+      "audio": "3aab14493ccd8dcfaadf5a65af3ec88d7b9479b180c9d7128c4fb9c22dbe31a6"
+    },
+    [
+      "application/pdf",
+      "text/pdf"
+    ],
+    0,
+    1,
+    [
+      {
+        "codec": "H.264",
+        "support": "probably"
+      },
+      {
+        "codec": "H.264 High",
+        "support": "probably"
+      },
+      {
+        "codec": "H.265/HEVC",
+        "support": "probably"
+      },
+      {
+        "codec": "VP8",
+        "support": "probably"
+      },
+      {
+        "codec": "VP9",
+        "support": "probably"
+      },
+      {
+        "codec": "AV1",
+        "support": "probably"
+      },
+      {
+        "codec": "Theora",
+        "support": ""
+      },
+      {
+        "codec": "MPEG-4",
+        "support": ""
+      }
+    ],
+    "https://post.lieju.com/26/13",
+    {
+      "_state": 0,
+      "brands": [
+        {
+          "brand": "Google Chrome",
+          "version": "143"
+        },
+        {
+          "brand": "Chromium",
+          "version": "143"
+        },
+        {
+          "brand": "Not A(Brand",
+          "version": "24"
+        }
+      ],
+      "mobile": false,
+      "platform": "macOS"
+    },
+    1023,
+    "",
+    1,
+    {
+      "_state": 0,
+      "maxTextureDimension1D": 16384,
+      "maxTextureDimension2D": 16384,
+      "maxTextureDimension3D": 2048,
+      "maxTextureArrayLayers": 2048,
+      "maxBindGroups": 4,
+      "maxBindGroupsPlusVertexBuffers": 24,
+      "maxBindingsPerBindGroup": 1000,
+      "maxBufferSize": 4294967296,
+      "maxColorAttachmentBytesPerSample": 128,
+      "maxColorAttachments": 8,
+      "maxComputeInvocationsPerWorkgroup": 1024,
+      "maxComputeWorkgroupSizeX": 1024,
+      "maxComputeWorkgroupSizeY": 1024,
+      "maxComputeWorkgroupSizeZ": 64,
+      "maxComputeWorkgroupStorageSize": 32768,
+      "maxComputeWorkgroupsPerDimension": 65535,
+      "maxDynamicStorageBuffersPerPipelineLayout": 8,
+      "maxDynamicUniformBuffersPerPipelineLayout": 10,
+      "maxInterStageShaderVariables": 28,
+      "maxSampledTexturesPerShaderStage": 16,
+      "maxSamplersPerShaderStage": 16,
+      "maxStorageBufferBindingSize": 4294967292,
+      "maxStorageBuffersPerShaderStage": 10,
+      "maxStorageTexturesPerShaderStage": 8,
+      "maxUniformBufferBindingSize": 65536,
+      "maxUniformBuffersPerShaderStage": 12,
+      "maxVertexAttributes": 30,
+      "maxVertexBufferArrayStride": 2048,
+      "maxVertexBuffers": 8,
+      "minStorageBufferOffsetAlignment": 256,
+      "minUniformBufferOffsetAlignment": 256
+    },
+    "Google Inc. (Apple)",
+    2,
+    [],
+    [
+      "PDF Viewer",
+      "Chrome PDF Viewer",
+      "Chromium PDF Viewer",
+      "Microsoft Edge PDF Viewer",
+      "WebKit built-in PDF"
+    ],
+    1785340503,
+    0,
+    {
+      "count": 0,
+      "items": []
+    },
+    0,
+    0,
+    "",
+    1785340498,
+    "1470-956-846-30-*-*-|-*",
+    10,
+    {
+      "_state": 0,
+      "timeZone": "Asia/Shanghai",
+      "calendar": "gregory",
+      "numberingSystem": "latn",
+      "locale": "zh-CN"
+    },
+    "https://captcha.gtimg.com/static/template/drag_ele.a48cc4fb.html?rand=1519713624347",
+    {
+      "type": "landscape-primary",
+      "angle": 0
+    },
+    "macos",
+    1470,
+    "iframe",
+    "https://t.captcha.qq.com|https://captcha.gtimg.com/static",
+    "UTF-8",
+    "+08",
+    199,
+    {
+      "_state": 0,
+      "architecture": "arm",
+      "bitness": "64",
+      "brands": [
+        {
+          "brand": "Google Chrome",
+          "version": "143"
+        },
+        {
+          "brand": "Chromium",
+          "version": "143"
+        },
+        {
+          "brand": "Not A(Brand",
+          "version": "24"
+        }
+      ],
+      "fullVersionList": [
+        {
+          "brand": "Google Chrome",
+          "version": "143.0.7499.110"
+        },
+        {
+          "brand": "Chromium",
+          "version": "143.0.7499.110"
+        },
+        {
+          "brand": "Not A(Brand",
+          "version": "24.0.0.0"
+        }
+      ],
+      "mobile": false,
+      "model": "",
+      "platform": "macOS",
+      "platformVersion": "26.2.0",
+      "uaFullVersion": "143.0.7499.110",
+      "wow64": false
+    },
+    [
+      "en-US",
+      "en",
+      "zh-CN"
+    ],
+    {
+      "count": 2,
+      "items": [
+        {
+          "type": "script",
+          "status": 200,
+          "name": "https://captcha.gtimg.com/static/dy-jy.js"
+        },
+        {
+          "type": "script",
+          "status": 200,
+          "name": "https://captcha.gtimg.com/static/dy-ele.028ad594.js"
+        }
+      ]
+    },
+    2,
+    1,
+    null,
+    1813840149,
+    1785340419,
+    1,
+    "Arial,Arial Black,Arial Narrow,Courier New,Georgia,Impact,Times New Roman,Trebuchet MS,Verdana,Helvetica,Tahoma,Gill Sans,Palatino,Comic Sans MS,PingFang SC,STHeiti,PingFang TC,Hiragino Sans GB,Heiti SC,Heiti TC,Songti SC,STSong,STFangSong",
+    "p3",
+    {
+      "workerTime": 1785340498491,
+      "diff": 14
+    },
+    {
+      "kc": 0,
+      "mc": 75,
+      "tc": 0,
+      "pc": 74
+    },
+    "",
+    8,
+    "",
+    "MacIntel",
+    [
+      [
+        4,
+        554,
+        129,
+        1785340498478,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        85,
+        335,
+        2241,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -9,
+        35,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -24,
+        42,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -11,
+        32,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -5,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        -1,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -3,
+        -1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -3,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        0,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        2,
+        0,
+        0,
+        106,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        110,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        9,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        69,
+        -13,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        92,
+        -17,
+        38,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        78,
+        -11,
+        45,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        17,
+        -1,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        4,
+        0,
+        32,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        201,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -3,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -6,
+        2,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -8,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -8,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -3,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        100,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        67,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        34,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        -1,
+        1,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        33,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        1,
+        151,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        -1,
+        367,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0,
+        199,
+        0,
+        0,
+        0,
+        0
+      ]
+    ],
+    {
+      "sheets": 1,
+      "rules": 247
+    },
+    {
+      "_state": 0,
+      "quota": 147064317542,
+      "usage": null,
+      "usageDetails": {}
+    },
+    956,
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "1;7488260790910033920",
+    "Y3VzdG9tMw==",
+    "GgoAAAANSUhEUgAAASwAAACWCAYAAAYXTMY+FySbLx8DgDpTw7X3SXJGzfsWQDAIlHM7RrgRs/AAAAAElFTkSuQmCC",
+    [
+      360,
+      360
+    ],
+    0,
+    {
+      "_state": 0,
+      "nt_vc_output": {
+        "ac-baseLatency": 0.005333333333333333,
+        "ac-outputLatency": 0,
+        "ac-sampleRate": 48000,
+        "ac-maxChannelCount": 2,
+        "ac-numberOfInputs": 1,
+        "ac-numberOfOutputs": 0,
+        "ac-channelCount": 2,
+        "ac-channelCountMode": "explicit",
+        "ac-channelInterpretation": "speakers",
+        "an-fftSize": 2048,
+        "an-frequencyBinCount": 1024,
+        "an-minDecibels": -100,
+        "an-maxDecibels": -30,
+        "an-smoothingTimeConstant": 0.8,
+        "an-numberOfInputs": 1,
+        "an-numberOfOutputs": 1,
+        "an-channelCount": 2,
+        "an-channelCountMode": "max",
+        "an-channelInterpretation": "speakers"
+      },
+      "pxi_output": 5461.333333333333
+    },
+    0,
+    0.1,
+    "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Unspecified Version)",
+    0,
+    "98k",
+    1,
+    30,
+    [
+      {
+        "codec": "AAC",
+        "support": "probably"
+      },
+      {
+        "codec": "MP3",
+        "support": "probably"
+      },
+      {
+        "codec": "Ogg Vorbis",
+        "support": "probably"
+      },
+      {
+        "codec": "Ogg Opus",
+        "support": "probably"
+      },
+      {
+        "codec": "WAV",
+        "support": "probably"
+      },
+      {
+        "codec": "FLAC",
+        "support": "probably"
+      },
+      {
+        "codec": "WebM Vorbis",
+        "support": "probably"
+      },
+      {
+        "codec": "WebM Opus",
+        "support": "probably"
+      },
+      {
+        "codec": "M4A",
+        "support": "maybe"
+      }
+    ],
+    42124426,
+    "complete",
+    []
+  ],
+  "sd": {
+    "od": "C",
+    "isNewEntry": 1,
+    "slideValue": [
+      [
+        4,
+        0,
+        0,
+        1785340470243,
+        0
+      ],
+      [
+        1,
+        938,
+        20,
+        752,
+        0
+      ],
+      [
+        1,
+        -52,
+        554,
+        23120,
+        0
+      ],
+      [
+        1,
+        -134,
+        -152,
+        46,
+        0
+      ],
+      [
+        1,
+        -19,
+        -28,
+        38,
+        0
+      ],
+      [
+        1,
+        -10,
+        -14,
+        247,
+        0
+      ],
+      [
+        1,
+        -46,
+        -20,
+        32,
+        0
+      ],
+      [
+        1,
+        -74,
+        -37,
+        34,
+        0
+      ],
+      [
+        1,
+        -41,
+        -31,
+        33,
+        0
+      ],
+      [
+        1,
+        -8,
+        -8,
+        33,
+        0
+      ],
+      [
+        1,
+        -1,
+        5,
+        167,
+        0
+      ],
+      [
+        1,
+        -26,
+        48,
+        34,
+        0
+      ],
+      [
+        1,
+        -83,
+        146,
+        33,
+        0
+      ],
+      [
+        1,
+        -97,
+        131,
+        925,
+        0
+      ],
+      [
+        1,
+        69,
+        -154,
+        41,
+        0
+      ],
+      [
+        1,
+        62,
+        -133,
+        34,
+        0
+      ],
+      [
+        1,
+        27,
+        -58,
+        33,
+        0
+      ],
+      [
+        1,
+        8,
+        -13,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        240,
+        0
+      ],
+      [
+        1,
+        10,
+        -1,
+        44,
+        0
+      ],
+      [
+        1,
+        9,
+        -4,
+        33,
+        0
+      ],
+      [
+        1,
+        5,
+        -3,
+        33,
+        0
+      ],
+      [
+        1,
+        2,
+        0,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        41,
+        0
+      ],
+      [
+        1,
+        -21,
+        1,
+        43,
+        0
+      ],
+      [
+        1,
+        -30,
+        5,
+        33,
+        0
+      ],
+      [
+        1,
+        -31,
+        4,
+        33,
+        0
+      ],
+      [
+        1,
+        -25,
+        1,
+        34,
+        0
+      ],
+      [
+        1,
+        -14,
+        -4,
+        33,
+        0
+      ],
+      [
+        1,
+        -9,
+        -5,
+        33,
+        0
+      ],
+      [
+        1,
+        -4,
+        -4,
+        34,
+        0
+      ],
+      [
+        2,
+        0,
+        0,
+        104,
+        0
+      ],
+      [
+        3,
+        0,
+        0,
+        96,
+        0
+      ],
+      [
+        1,
+        0,
+        -1,
+        317,
+        0
+      ],
+      [
+        1,
+        1,
+        -2,
+        33,
+        0
+      ],
+      [
+        1,
+        1,
+        -2,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        -1,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        -1,
+        34,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        167,
+        0
+      ],
+      [
+        1,
+        1,
+        0,
+        77,
+        0
+      ],
+      [
+        2,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        3,
+        0,
+        0,
+        89,
+        0
+      ],
+      [
+        1,
+        0,
+        2,
+        367,
+        0
+      ],
+      [
+        1,
+        23,
+        29,
+        33,
+        0
+      ],
+      [
+        1,
+        51,
+        65,
+        33,
+        0
+      ],
+      [
+        1,
+        68,
+        89,
+        34,
+        0
+      ],
+      [
+        1,
+        49,
+        77,
+        33,
+        0
+      ],
+      [
+        1,
+        30,
+        53,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        1,
+        234,
+        0
+      ],
+      [
+        1,
+        0,
+        15,
+        33,
+        0
+      ],
+      [
+        1,
+        0,
+        27,
+        33,
+        0
+      ],
+      [
+        1,
+        2,
+        18,
+        34,
+        0
+      ],
+      [
+        1,
+        9,
+        -279,
+        2325,
+        0
+      ]
+    ],
+    "verifyBtnPos": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "opAreaPos": [
+      10,
+      72,
+      350,
+      315
+    ],
+    "clientSize": [
+      1470,
+      340
+    ],
+    "ft": "qf_7Pf__H",
+    "tdc_perf": {
+      "fi": 80,
+      "pi": 54,
+      "gd": 79
+    }
+  }
+}
