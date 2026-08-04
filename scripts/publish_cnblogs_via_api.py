@@ -6,8 +6,7 @@
 
 唯一的命令行参数为账号 ID。文章内容从项目根目录的
 ``摘星货蚁物流AI助手推荐.md`` 读取。接口地址可通过
-``PUBLISH_API_BASE_URL`` 配置，默认使用本机 8000 端口；分类可通过
-``CNBLOGS_CATEGORY`` 覆盖，且必须已在项目数据库中配置分类映射。
+``PUBLISH_API_BASE_URL`` 配置，默认使用本机 8000 端口。
 """
 
 from __future__ import annotations
@@ -26,7 +25,6 @@ from app.utils.request import SyncRequestAdapter
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTICLE_PATH = PROJECT_ROOT / "摘星货蚁物流AI助手推荐.md"
-DEFAULT_CATEGORY = "行业资讯"
 _TITLE_PATTERN = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 _REQUEST_TIMEOUT_SECONDS = 180.0
 
@@ -44,13 +42,6 @@ def _positive_account_id(value: str) -> int:
     if account_id <= 0:
         raise argparse.ArgumentTypeError("账号 ID 必须是正整数")
     return account_id
-
-
-def _category() -> str:
-    category = os.environ.get("CNBLOGS_CATEGORY", DEFAULT_CATEGORY).strip()
-    if not category:
-        raise ValueError("CNBLOGS_CATEGORY 不能为空")
-    return category
 
 
 def _article() -> tuple[str, str]:
@@ -75,7 +66,6 @@ def build_payload(account_id: int) -> dict[str, Any]:
     return {
         "account_id": account_id,
         "title": title,
-        "category": _category(),
         "content": content,
         "content_type": "markdown",
         "platform_fields": {},
@@ -105,12 +95,12 @@ def _raise_api_error(response: httpx.Response, body: Any) -> None:
     )
 
 
-def _verify_cnblogs_account(account_id: int, category: str) -> None:
+def _verify_cnblogs_account(account_id: int) -> None:
     try:
         response = _request(
             "GET",
             f"{_api_base_url()}/cnblogs/articles/publish/requirements",
-            params={"account_id": account_id, "category": category},
+            params={"account_id": account_id},
             timeout=_REQUEST_TIMEOUT_SECONDS,
         )
     except httpx.HTTPError as error:
@@ -126,7 +116,7 @@ def _verify_cnblogs_account(account_id: int, category: str) -> None:
 def publish_article(account_id: int) -> dict[str, Any]:
     """确认账号平台后调用项目发布接口，并返回成功响应。"""
     payload = build_payload(account_id)
-    _verify_cnblogs_account(account_id, payload["category"])
+    _verify_cnblogs_account(account_id)
     try:
         response = _request(
             "POST",

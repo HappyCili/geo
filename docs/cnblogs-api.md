@@ -2,7 +2,7 @@
 
 ## 1. 概述
 
-本文档说明本服务对外提供的博客园（`cnblogs`）文章发布接口。服务负责读取已配置的博客园媒体账号、分类映射和登录凭据，并将文章提交至博客园；调用方不需要传递 Cookie、`XSRF-TOKEN` 或博客园会话 ID。
+本文档说明本服务对外提供的博客园（`cnblogs`）文章发布接口。服务负责读取已配置的博客园媒体账号和登录凭据，并将文章提交至博客园；调用方不需要传递 Cookie、`XSRF-TOKEN`、博客园会话 ID 或分类。
 
 - 服务名称：媒体文章发布服务
 - 服务版本：`2.0.0`
@@ -10,7 +10,7 @@
 - 数据格式：请求和响应均为 `application/json`，除查询参数接口外
 - 交互文档：启动服务后可访问 `GET /docs`
 
-博客园发布前建议先调用“查询发布要求”接口，确认账号属于博客园且分类映射已配置，再调用发布接口。
+博客园发布前建议先调用“查询发布要求”接口，确认账号属于博客园，再调用发布接口。
 
 ```text
 GET  /cnblogs/articles/publish/requirements
@@ -19,7 +19,7 @@ POST /cnblogs/articles/publish
 
 ## 2. 运行前配置
 
-服务启动前需配置数据库和 Redis 连接。媒体账号和分类映射保存在数据库中。
+服务启动前需配置数据库和 Redis 连接。媒体账号保存在数据库中。
 
 ```sh
 export DB_HOST='127.0.0.1'
@@ -44,14 +44,17 @@ export CNBLOGS_PASSWORD='PASSWORD'
 为 1 至 3 次。验证码运行时会自动触发 Aliyun 复选挑战、等待成功回调并将返回 token 与
 本地生成的指纹一同提交。
 
-分类名必须存在于 `tb_medium_platform_category`，并且对应记录为启用、未删除状态。博客园的 `category_value` 是一个或多个逗号分隔的数字分类 ID，例如：
+博客园发布不要求 `category`。省略该字段时，服务不查询分类映射，并向博客园提交
+`categoryIds: null`。为兼容已有调用，也可显式传入已配置的分类名；此时分类名必须存在于
+`tb_medium_platform_category`，并且对应记录为启用、未删除状态。博客园的 `category_value`
+是一个或多个逗号分隔的数字分类 ID，例如：
 
 ```sql
 INSERT INTO tb_medium_platform_category (platform, category_name, category_value)
 VALUES ('cnblogs', '行业资讯', '12,34');
 ```
 
-发布时服务会将 `12,34` 转换为博客园所需的 `[12, 34]`。分类 ID 为空或包含非数字时，发布请求返回 `422`。
+显式传入分类时，服务会将 `12,34` 转换为博客园所需的 `[12, 34]`。分类 ID 为空或包含非数字时，发布请求返回 `422`。
 
 ## 3. 通用约定
 
@@ -83,18 +86,18 @@ VALUES ('cnblogs', '行业资讯', '12,34');
 
 ## 4. 查询发布要求
 
-查询指定博客园账号和分类是否可用于发布。当前博客园实现不需要额外平台字段，因此成功响应中的 `fields` 固定为空数组。
+查询指定博客园账号是否可用于发布。`category` 可省略；当前博客园实现不需要额外平台字段，因此成功响应中的 `fields` 固定为空数组。
 
 ### 请求
 
 ```http
-GET /cnblogs/articles/publish/requirements?account_id=5&category=%E8%A1%8C%E4%B8%9A%E8%B5%84%E8%AE%AF
+GET /cnblogs/articles/publish/requirements?account_id=5
 ```
 
 | 参数 | 位置 | 类型 | 必填 | 约束 | 说明 |
 | --- | --- | --- | --- | --- | --- |
 | `account_id` | query | integer | 是 | 大于 `0` | 博客园媒体账号 ID |
-| `category` | query | string | 是 | 1 至 128 个字符；去除首尾空白后不可为空 | 已配置的业务分类名 |
+| `category` | query | string | 否 | 传入时为 1 至 128 个字符，去除首尾空白后不可为空 | 可选的已配置业务分类名 |
 
 ### 成功响应
 
@@ -104,7 +107,7 @@ GET /cnblogs/articles/publish/requirements?account_id=5&category=%E8%A1%8C%E4%B8
 {
   "account_id": 5,
   "platform": "cnblogs",
-  "category": "行业资讯",
+  "category": null,
   "publishable": true,
   "captcha_required": false,
   "fields": []
@@ -115,7 +118,7 @@ GET /cnblogs/articles/publish/requirements?account_id=5&category=%E8%A1%8C%E4%B8
 | --- | --- | --- |
 | `account_id` | integer | 请求的账号 ID |
 | `platform` | string | 固定为 `cnblogs` |
-| `category` | string | 去除首尾空白后的分类名 |
+| `category` | string or null | 省略时为 `null`；传入时为去除首尾空白后的分类名 |
 | `publishable` | boolean | 当前发布器是否允许发布；博客园当前为 `true` |
 | `captcha_required` | boolean | 当前是否要求调用方补充验证码；博客园当前为 `false` |
 | `fields` | array | 平台附加字段定义；博客园当前为空数组 |
@@ -124,8 +127,7 @@ GET /cnblogs/articles/publish/requirements?account_id=5&category=%E8%A1%8C%E4%B8
 
 ```sh
 curl -G 'http://127.0.0.1:8000/cnblogs/articles/publish/requirements' \
-  --data-urlencode 'account_id=5' \
-  --data-urlencode 'category=行业资讯'
+  --data-urlencode 'account_id=5'
 ```
 
 ## 5. 发布文章
@@ -143,7 +145,7 @@ Content-Type: application/json
 | --- | --- | --- | --- | --- |
 | `account_id` | integer | 是 | 大于 `0` | 博客园媒体账号 ID |
 | `title` | string | 是 | 1 至 200 个字符；去除首尾空白后不可为空 | 文章标题 |
-| `category` | string | 是 | 1 至 128 个字符；去除首尾空白后不可为空 | 数据库中已配置的分类名 |
+| `category` | string | 否 | 传入时为 1 至 128 个字符，去除首尾空白后不可为空 | 可选的数据库分类名 |
 | `content` | string | 是 | 去除空白后不可为空 | 文章正文；内容原样交由博客园处理 |
 | `content_type` | string | 否 | `markdown` 或 `html`，默认 `markdown` | 正文格式；决定博客园的 Markdown 标记 |
 | `platform_fields` | object | 否 | 键不可为空；值为字符串或字符串数组 | 平台扩展字段。博客园当前不消费此对象，建议传 `{}` |
@@ -154,7 +156,6 @@ Content-Type: application/json
 {
   "account_id": 5,
   "title": "物流 AI 助手的落地实践",
-  "category": "行业资讯",
   "content": "# 物流 AI 助手的落地实践\n\n这里是 Markdown 正文。",
   "content_type": "markdown",
   "platform_fields": {}
@@ -167,7 +168,6 @@ curl -X POST 'http://127.0.0.1:8002/cnblogs/articles/publish' \
   -d '{
     "account_id": 2,
     "title": "物流 AI 助手的落地实践",
-    "category": "行业资讯",
     "content": "# 物流 AI 助手的落地实践\\n\\n这里是 Markdown 正文。",
     "content_type": "markdown",
     "platform_fields": {}
@@ -207,7 +207,7 @@ curl -X POST 'http://127.0.0.1:8002/cnblogs/articles/publish' \
 | `409` | `login_expired` | 登录态失效且刷新或重试后仍不可用 |
 | `409` | `captcha_required` | 自动验证码重试次数已耗尽 |
 | `422` | `platform_mismatch` | 账号不是博客园账号 |
-| `422` | `invalid_request` | 未配置分类、分类 ID 为空或非数字等业务校验失败 |
+| `422` | `invalid_request` | 显式传入的分类未配置，或分类 ID 为空、非数字等业务校验失败 |
 | `422` | `invalid_platform_fields` | 平台字段校验失败；当前博客园不要求扩展字段 |
 | `422` | 标准校验错误 | 参数缺失、类型不匹配、字符串长度或枚举值不合法 |
 | `502` | `upstream_publish_error` | 博客园发布请求失败、缺少 `XSRF-TOKEN` 或上游未确认发布成功 |
@@ -249,15 +249,13 @@ curl -X POST 'http://127.0.0.1:8002/cnblogs/articles/publish' \
 
 ## 7. 调用流程
 
-1. 在 `tb_medium_platform_category` 中配置 `platform='cnblogs'` 的分类名称和分类 ID。
-2. 调用 `GET /cnblogs/articles/publish/requirements`，确认响应中的 `platform` 为 `cnblogs` 且 `publishable` 为 `true`。
-3. 调用 `POST /cnblogs/articles/publish` 提交文章。
-4. 以响应的 `success`、`http_status` 与 `article_url` 作为发布结果；`article_url` 为 `null` 时可依据标题在博客园后台确认文章。
+1. 调用 `GET /cnblogs/articles/publish/requirements`，确认响应中的 `platform` 为 `cnblogs` 且 `publishable` 为 `true`。
+2. 调用 `POST /cnblogs/articles/publish` 提交文章，无需传递 `category`。
+3. 以响应的 `success`、`http_status` 与 `article_url` 作为发布结果；`article_url` 为 `null` 时可依据标题在博客园后台确认文章。
 
 项目还提供脚本 `scripts/publish_cnblogs_via_api.py`。该脚本会读取根目录的 `摘星货蚁物流AI助手推荐.md`，先执行发布要求检查，再调用发布接口：
 
 ```sh
 PUBLISH_API_BASE_URL='http://127.0.0.1:8000' \
-CNBLOGS_CATEGORY='行业资讯' \
 .venv/bin/python scripts/publish_cnblogs_via_api.py 5
 ```

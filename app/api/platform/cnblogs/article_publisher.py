@@ -33,14 +33,18 @@ class CnblogsPublisher(ArticlePublisher):
         self._timeout = get_settings().request_timeout_seconds
 
     @staticmethod
-    def _category_ids(category: str, category_value: str) -> list[int]:
+    def _category_ids(category: str | None, category_value: str | None) -> list[int] | None:
+        if category_value is None:
+            return None
         parts = [part.strip() for part in category_value.split(",") if part.strip()]
         if not parts:
-            raise PublisherConfigurationError(f"CNBlogs 分类 {category} 未配置分类 ID")
+            raise PublisherConfigurationError(f"CNBlogs 分类 {category or '<empty>'} 未配置分类 ID")
         try:
             return [int(part) for part in parts]
         except ValueError as error:
-            raise PublisherConfigurationError(f"CNBlogs 分类 {category} 的分类 ID 必须为整数") from error
+            raise PublisherConfigurationError(
+                f"CNBlogs 分类 {category or '<empty>'} 的分类 ID 必须为整数"
+            ) from error
 
     @staticmethod
     def _headers(credentials: Credentials) -> dict[str, str]:
@@ -98,8 +102,8 @@ class CnblogsPublisher(ArticlePublisher):
         self,
         *,
         title: str,
-        category: str,
-        category_value: str,
+        category: str | None = None,
+        category_value: str | None = None,
         content: str,
         content_type: ContentType,
         credentials: Credentials,

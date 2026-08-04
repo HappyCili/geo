@@ -16,20 +16,20 @@ class ArticlePublisher(BaseRequest, ABC):
         self,
         *,
         title: str,
-        category: str,
-        category_value: str,
+        category: str | None,
+        category_value: str | None,
         content: str,
         content_type: ContentType,
         credentials: Credentials,
         platform_fields: Mapping[str, PlatformFieldValue],
     ) -> PublishResult:
-        """将文章发布到本平台。category 保留用户传入的中文分类名。"""
+        """将文章发布到本平台；不需要分类的平台可接收空分类。"""
 
     async def get_requirements(
         self,
         *,
-        category: str,
-        category_value: str,
+        category: str | None,
+        category_value: str | None,
         credentials: Credentials,
     ) -> PublishRequirements:
         return PublishRequirements(publishable=True, captcha_required=False, fields=())

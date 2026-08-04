@@ -9,10 +9,11 @@ from app.domain import Credentials, LoginSecret, MediumAccount, PublishRequireme
 from app.errors import (
     LoginExpiredError,
     PlatformMismatchError,
+    PublisherConfigurationError,
     RefreshUnavailableError,
 )
 from app.repositories import AccountRepository, CategoryRepository
-from app.schemas import PublishArticleRequest
+from app.schemas import BasePublishArticleRequest
 from app.services.cookie_store import CookieStore
 from app.services.login import (
     CnblogsLoginProvider,
@@ -135,7 +136,7 @@ class PublishOrchestrator:
         return LoginSecret(username=username.strip(), password=password.strip())
 
     async def publish(
-        self, request: PublishArticleRequest, expected_platform: str
+        self, request: BasePublishArticleRequest, expected_platform: str
     ) -> tuple[str, PublishResult]:
         account: MediumAccount | None = None
 
@@ -162,11 +163,11 @@ class PublishOrchestrator:
     async def _publish_from_account(
         self,
         account: MediumAccount,
-        request: PublishArticleRequest,
+        request: BasePublishArticleRequest,
         expected_platform: str,
     ) -> tuple[str, PublishResult]:
         self._assert_platform(account, expected_platform)
-        category_value = await self._categories.get_value(account.platform, request.category)
+        category_value = await self._category_value(account.platform, request.category)
 
         if account.sync_status == 0:
             self._telemetry.emit(
@@ -223,8 +224,8 @@ class PublishOrchestrator:
     async def _refresh_and_publish(
         self,
         account: MediumAccount,
-        request: PublishArticleRequest,
-        category_value: str,
+        request: BasePublishArticleRequest,
+        category_value: str | None,
     ) -> tuple[str, PublishResult]:
         refreshed_account, credentials = await self._refresh_credentials(account)
         result = await self._publish_once(
@@ -238,8 +239,8 @@ class PublishOrchestrator:
     async def _refresh_then_retry(
         self,
         account: MediumAccount,
-        request: PublishArticleRequest,
-        category_value: str,
+        request: BasePublishArticleRequest,
+        category_value: str | None,
     ) -> PublishResult:
         if account.platform not in {"cnblogs", "hepan", "lieju"} or self._refresh is None:
             raise LoginExpiredError("媒体账号登录态已过期")
@@ -279,11 +280,11 @@ class PublishOrchestrator:
         return result
 
     async def get_requirements(
-        self, account_id: int, category: str, expected_platform: str
+        self, account_id: int, category: str | None, expected_platform: str
     ) -> tuple[str, PublishRequirements]:
         account = await self._accounts.get_active(account_id)
         self._assert_platform(account, expected_platform)
-        category_value = await self._categories.get_value(account.platform, category)
+        category_value = await self._category_value(account.platform, category)
         credentials = await self._cookie_store.load(account)
         publisher = self._registry.get(account.platform)
         requirements = await publisher.get_requirements(
@@ -306,8 +307,8 @@ class PublishOrchestrator:
     async def _publish_once(
         self,
         account: MediumAccount,
-        request: PublishArticleRequest,
-        category_value: str,
+        request: BasePublishArticleRequest,
+        category_value: str | None,
         credentials: Credentials,
     ) -> PublishResult:
         publisher = self._registry.get(account.platform)
@@ -320,6 +321,13 @@ class PublishOrchestrator:
             credentials=credentials,
             platform_fields=request.platform_fields,
         )
+
+    async def _category_value(self, platform: str, category: str | None) -> str | None:
+        if category is None:
+            if platform == "cnblogs":
+                return None
+            raise PublisherConfigurationError(f"{platform} 发布必须提供 category")
+        return await self._categories.get_value(platform, category)
 
     @staticmethod
     def _assert_platform(account: MediumAccount, expected_platform: str) -> None:
