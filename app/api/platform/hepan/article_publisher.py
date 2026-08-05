@@ -53,6 +53,8 @@ class HepanPublisher(ArticlePublisher):
         location = headers.get("location", "").lower()
         if getattr(response, "is_redirect", False) and "login" in location:
             return True
+        if not response.content.strip():
+            return False
         document = lxml_html.fromstring(response.content.decode("utf-8", errors="replace"))
         return bool(document.xpath("//form[contains(@action, 'login') or @id='loginform']"))
 
@@ -155,17 +157,30 @@ class HepanPublisher(ArticlePublisher):
 
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Cookie": credentials.cookie_header,
             "User-Agent": USER_AGENT,
         }
         params = {"mod": "portalcp", "ac": "article", "catid": category_id}
         try:
-            async with self._client_factory(headers=headers, timeout=self._timeout) as client:
+            async with self._client_factory(
+                headers=headers,
+                cookies=credentials.cookies,
+                timeout=self._timeout,
+            ) as client:
                 edit_response = await self.request(
                     "GET", PUBLISH_URL, params=params, _client=client
                 )
+                if edit_response.status_code == 401:
+                    raise LoginExpiredError(
+                        "Hepan 登录态已过期",
+                        retry_safe=True,
+                    )
                 if self._is_login_response(edit_response):
-                    raise LoginExpiredError("Hepan 登录态已过期")
+                    raise LoginExpiredError(
+                        "Hepan 登录态已过期",
+                        retry_safe=True,
+                    )
+                if self._is_human_verification_response(edit_response):
+                    raise CaptchaRequiredError("Hepan 发布请求需要验证码")
                 edit_response.raise_for_status()
                 formhash = self._parse_formhash(edit_response.content)
                 parts = self._build_parts(

@@ -14,16 +14,6 @@ from app.logging_config import configure_app_logging
 
 logger = logging.getLogger("app.request")
 
-_SENSITIVE_FIELD_NAMES = {
-    "authorization",
-    "cookie",
-    "cookies",
-    "password",
-    "proxy-authorization",
-    "set-cookie",
-    "token",
-    "x-xsrf-token",
-}
 _BINARY_CONTENT_TYPES = (
     "application/octet-stream",
     "application/pdf",
@@ -36,25 +26,45 @@ _BINARY_CONTENT_TYPES = (
 )
 
 
-def _is_sensitive_name(name: object) -> bool:
-    normalized = str(name).lower().replace("_", "-")
-    return normalized in _SENSITIVE_FIELD_NAMES or any(
-        marker in normalized
-        for marker in ("password", "secret", "token", "cookie", "authorization")
-    )
+def _response_request(response: Any) -> Any | None:
+    history = getattr(response, "history", None)
+    if history:
+        first_request = getattr(history[0], "request", None)
+        if first_request is not None:
+            return first_request
+    try:
+        return getattr(response, "request", None)
+    except (RuntimeError, TypeError, ValueError):
+        return None
 
 
-def _redact_payload(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return {
-            str(key): "<redacted>" if _is_sensitive_name(key) else _redact_payload(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, tuple):
-        return tuple(_redact_payload(item) for item in value)
-    if isinstance(value, list):
-        return [_redact_payload(item) for item in value]
-    return value
+def _request_content(request: Any) -> Any | None:
+    if request is None:
+        return None
+    for attribute in ("content", "body"):
+        try:
+            value = getattr(request, attribute, None)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            continue
+        if value is not None:
+            return value
+    return None
+
+
+def _request_body_value(
+    *,
+    data: Any,
+    json_data: Any,
+    files: Any,
+    content: Any,
+) -> Any:
+    if json_data is not None:
+        return json_data
+    if data is not None:
+        return data
+    if content is not None:
+        return content
+    return files
 
 
 def _response_status(response: Any) -> int | str:
@@ -93,9 +103,7 @@ def _response_is_binary(response: Any) -> bool:
     return isinstance(content, bytes) and b"\x00" in content[:1024]
 
 
-def _response_debug_text(response: Any, limit: int = 500) -> str:
-    if _response_is_binary(response):
-        return "<binary response>"
+def _response_debug_text(response: Any, limit: int | None = None) -> str:
     try:
         text = response.text
     except (AttributeError, RuntimeError, TypeError, ValueError):
@@ -104,7 +112,8 @@ def _response_debug_text(response: Any, limit: int = 500) -> str:
             text = content.decode("utf-8", errors="replace")
         else:
             text = str(content)
-    return str(text)[:limit]
+    value = str(text)
+    return value if limit is None else value[:limit]
 
 
 async def _await_if_needed(value: Any) -> Any:
@@ -117,7 +126,7 @@ class BaseRequest:
     """Shared async HTTP request implementation for project integrations."""
 
     retry_delay_seconds = 2.0
-    response_debug_preview_length = 500
+    response_debug_preview_length: int | None = None
 
     def __init__(
         self,
@@ -272,36 +281,66 @@ class BaseRequest:
         return _response_is_binary(response)
 
     def _get_response_debug_text(self, response: Any) -> str:
-        if self._is_binary_response(response):
-            return "<binary response>"
-        return _response_debug_text(response, self.response_debug_preview_length)
+        return _response_debug_text(response)
 
     def _log_response(
         self,
         url: str,
         response: Any,
         *,
+        method: str = "GET",
         headers: Optional[MutableMapping[str, str]],
         params: Optional[dict[str, Any]],
         data: Optional[Union[dict[str, Any], Iterable[Tuple[str, Any]], bytes]],
         json_data: Optional[Any],
         cookies: Optional[MutableMapping[str, str]],
+        files: Optional[Mapping[str, Any]] = None,
+        content: Any = None,
         log_request_info: bool,
         log_response_info: bool,
     ) -> None:
+        request = _response_request(response)
+        request_method = str(getattr(request, "method", method)).upper()
+        request_url = str(getattr(request, "url", url))
+        if request is None and params:
+            request_url = str(httpx.URL(request_url, params=params))
+        request_headers_value = getattr(request, "headers", None)
+        if not isinstance(request_headers_value, Mapping):
+            request_headers_value = dict(headers or {})
+            if cookies:
+                request_headers_value.setdefault(
+                    "Cookie",
+                    "; ".join(f"{name}={value}" for name, value in cookies.items()),
+                )
+        request_body = _request_content(request)
+        if request_body is None:
+            request_body = _request_body_value(
+                data=data,
+                json_data=json_data,
+                files=files,
+                content=content,
+            )
+
         logger.info(
             "%s--->[%s]%.3fs",
-            url,
+            request_url,
             _response_status(response),
             _response_elapsed_seconds(response),
         )
         if log_request_info:
-            for payload in (headers, json_data, data, cookies, params):
-                if payload:
-                    logger.debug("request=%r", _redact_payload(payload))
+            logger.debug(
+                "request method=%s request.url=%s request.headers=%r request.body=%r",
+                request_method,
+                request_url,
+                dict(request_headers_value),
+                request_body,
+            )
         if log_response_info:
             logger.debug(
-                "response=%s",
+                "response status_code=%s response.url=%s elapsed=%.3fs response.text=%s",
+                _response_status(response),
+                str(getattr(response, "url", url)),
+                _response_elapsed_seconds(response),
                 self._get_response_debug_text(response),
             )
 
@@ -382,11 +421,22 @@ class BaseRequest:
             except Exception as error:
                 last_exception = error
                 logger.exception(
-                    "request failed (%s/%s): %s %s",
+                    "request failed (%s/%s): %s request.url=%s request.params=%r "
+                    "request.headers=%r request.cookies=%r request.auth=%r request.body=%r",
                     attempt + 1,
                     attempts,
                     method.upper(),
                     url,
+                    params,
+                    dict(headers or {}),
+                    cookies,
+                    auth,
+                    _request_body_value(
+                        data=data,
+                        json_data=json,
+                        files=files,
+                        content=request_kwargs.get("content"),
+                    ),
                 )
                 if attempt + 1 < attempts and retry_delay:
                     await asyncio.sleep(float(retry_delay))
@@ -398,11 +448,14 @@ class BaseRequest:
         self._log_response(
             url,
             response,
+            method=method,
             headers=headers,
             params=params,
             data=data,
             json_data=json,
             cookies=cookies,
+            files=files,
+            content=request_kwargs.get("content"),
             log_request_info=log_request_info,
             log_response_info=log_response_info,
         )
@@ -500,9 +553,7 @@ class SyncRequestAdapter:
         return _response_is_binary(response)
 
     def _get_response_debug_text(self, response: Any) -> str:
-        if self._is_binary_response(response):
-            return "<binary response>"
-        return _response_debug_text(response, self.response_debug_preview_length)
+        return _response_debug_text(response)
 
     def request(
         self,
@@ -549,11 +600,22 @@ class SyncRequestAdapter:
             except Exception as error:
                 last_exception = error
                 logger.exception(
-                    "request failed (%s/%s): %s %s",
+                    "request failed (%s/%s): %s request.url=%s request.params=%r "
+                    "request.headers=%r request.cookies=%r request.auth=%r request.body=%r",
                     attempt + 1,
                     attempts,
                     method.upper(),
                     url,
+                    params,
+                    dict(headers or {}),
+                    cookies,
+                    auth,
+                    _request_body_value(
+                        data=data,
+                        json_data=json,
+                        files=files,
+                        content=request_kwargs.get("content"),
+                    ),
                 )
                 if attempt + 1 < attempts and retry_delay:
                     time.sleep(float(retry_delay))
@@ -566,11 +628,14 @@ class SyncRequestAdapter:
             self,
             url,
             response,
+            method=method,
             headers=headers,
             params=params,
             data=data,
             json_data=json,
             cookies=cookies,
+            files=files,
+            content=request_kwargs.get("content"),
             log_request_info=log_request_info,
             log_response_info=log_response_info,
         )

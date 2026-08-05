@@ -35,7 +35,8 @@ IP 相关风险，以及会影响实际行为的环境变量。
 POST /hepan/articles/publish
   -> PublishOrchestrator.publish()
   -> AccountRepository.get_active()
-  -> CookieStore.load() 或 RefreshCoordinator.refresh()
+  -> PublishOrchestrator._ensure_credentials_before_publish()
+     -> CookieStore.load() 或 RefreshCoordinator.refresh()
   -> HepanLoginProvider.login()（需要刷新时）
   -> HepanPublisher.publish_article()
 ```
@@ -48,7 +49,9 @@ POST /hepan/articles/publish
 
 - 数据库中 `cookie` 和 `cookies` 都为空时，即使旧的 `sync_status = 1`，返回给编排层的有效
   `sync_status` 也会变为 `0`；
-- 编排层直接进入刷新，不会把 Redis 中同版本的旧 Cookie 当作有效登录态；
+- 编排层会在调用任何平台发布器之前执行 `_ensure_credentials_before_publish()`；Cookie 缺失时先完成
+  登录、持久化新 Cookie，再调用 `HepanPublisher.publish_article()`，不会先向 Hepan 尝试发布；
+- 缺少 Cookie 时不会把 Redis 中同版本的旧 Cookie 当作有效登录态；
 - 这不是为 Redis 命中额外增加的一次 MySQL 查询。发布本来就要读取账号元数据，判断被合并在该查询中。
 
 当账号元数据仍有效时，`CookieStore.load()` 先读取
@@ -92,12 +95,19 @@ POST /hepan/articles/publish
 
 ### 4. 发布阶段与登录会话的关系
 
-登录成功后，`HepanPublisher` 会创建一个新的 HTTP 客户端，并携带刚持久化的 Cookie：
+登录成功后，`HepanPublisher` 会创建一个新的 HTTP 客户端，并把刚持久化的 Cookie 放入该客户端的
+Cookie jar：
 
 1. `GET /portal.php?mod=portalcp&ac=article&catid={category_id}`；
-2. 从 `form#articleform` 读取当前 `formhash`；
-3. 以 `multipart/form-data` 向 `POST /portal.php?mod=portalcp&ac=article` 提交文章；
-4. 使用页面成功文案、编辑链接或最终编辑页 URL 确认发布成功。
+2. 接收 GET 响应新增或更新的会话/WAF Cookie，后续 POST 自动使用同一个 Cookie jar；
+3. 从 `form#articleform` 读取当前 `formhash`；
+4. 以 `multipart/form-data` 向 `POST /portal.php?mod=portalcp&ac=article` 提交文章；
+5. 使用页面成功文案、编辑链接或最终编辑页 URL 确认发布成功。
+
+如果编辑表单 GET 返回登录页或 `401`，此时文章尚未提交，编排层会刷新登录并安全地重试一次完整发布。
+文章 POST 一旦发出，返回登录页或 `403` 时不会自动重发，因为无法可靠判断上游是否已经创建文章，自动重试
+可能产生重复内容。GET 为 `200`、紧接着 POST 为 `403` 通常位于 Hepan 的权限/WAF 校验阶段；新流程会保留
+GET 新下发的 Cookie，但若仍出现该结果，应继续检查响应页面的人机验证标记、账号发布权限和出口 IP 一致性。
 
 因此，“登录页挑战”内部保证同一会话，但“登录”和“发布”是两个 HTTP 客户端。如果代理按连接轮换出口，
 或者服务在两步之间切换网络出口，目标站可能观察到不同 IP，导致 Cookie 或人机验证状态失效。
@@ -150,7 +160,7 @@ POST /hepan/articles/publish
 | `REFRESH_LOCK_RENEW_SECONDS` | 否 | `20` 秒 | 刷新锁续租间隔 |
 | `REFRESH_WAIT_SECONDS` | 否 | `80.0` 秒 | 未获得刷新锁的请求等待共享结果的时间 |
 | `OBSERVABILITY_ACCOUNT_SALT` | 否 | 无 | 日志账号关联值的 HMAC 盐；未设置时使用数据库密码作为密钥 |
-| `APP_LOG_LEVEL` | 否 | `INFO` | 日志级别；排障可临时用 `DEBUG`，避免在长期运行中输出不必要的响应预览 |
+| `APP_LOG_LEVEL` | 否 | `DEBUG` | 日志级别；`DEBUG` 会记录完整请求 URL、headers、body 和 `response.text` |
 
 当前 `.env` 已配置数据库、Redis、发布请求超时及 Lieju 相关项；`LOGIN_TIMEOUT_SECONDS`、
 `PUBLISH_DEADLINE_SECONDS`、Cookie 缓存和刷新锁项未在 `.env` 中声明时使用上表默认值。进程环境的同名变量
@@ -219,7 +229,7 @@ env | rg '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|SSL_CERT_FILE|SSL_CERT_DIR
 1. 使用本地假 HTTP 客户端运行 Hepan 相关测试：
 
    ```sh
-   .venv/bin/python -m pytest tests/test_hepan_login_provider.py tests/test_hepan_api.py tests/test_api.py -q
+   venv/bin/python -m pytest test_hepan_publish_flow.py -q
    ```
 
 2. 检查 `GET /hepan/articles/publish/requirements` 是否能读取现有登录态；

@@ -11,15 +11,16 @@ export DB_NAME='DATABASE'
 export DB_CHARSET='utf8mb4'
 export REDIS_URL='redis://127.0.0.1:6379/0'
 export OBSERVABILITY_ACCOUNT_SALT='STABLE_SECRET_AT_LEAST_16_CHARACTERS'
-# 可选：INFO 输出请求摘要；DEBUG 额外输出经脱敏的请求信息和响应预览。
-# export APP_LOG_LEVEL='DEBUG'
+# 可选：默认 DEBUG，输出完整请求 URL、headers、body 和 response.text。
+# export APP_LOG_LEVEL='INFO'
 # 可选：当 tb_medium_account.account/password 未配置时用于 CNBlogs 自动登录。
 # export CNBLOGS_USERNAME='USERNAME'
 # export CNBLOGS_PASSWORD='PASSWORD'
 ```
 
 `OBSERVABILITY_ACCOUNT_SALT` 用于生成日志中的账号关联值；未设置时使用数据库密码作为
-HMAC 密钥。日志不会记录原始账号 ID、Cookie、账号名或密码。
+HMAC 密钥。DEBUG 请求日志会按原文记录 URL、headers、body 和上游 `response.text`，
+其中可能包含账号、密码、Cookie、Token 或 Session，应按敏感日志管理服务输出。
 
 ## Hepan 登录刷新
 

@@ -59,8 +59,6 @@ async def _send_logged_request(
         allow_redirects=True,
         retry=1,
         update_cookie=False,
-        log_request_info=False,
-        log_response_info=False,
         _client=client,
         **kwargs,
     )
@@ -651,7 +649,7 @@ class CnblogsLoginProvider:
                 "--credentials-stdin",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=None,
                 env=self._child_environment(),
                 cwd=str(self._project_root),
                 start_new_session=True,

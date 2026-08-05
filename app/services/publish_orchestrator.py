@@ -168,34 +168,7 @@ class PublishOrchestrator:
     ) -> tuple[str, PublishResult]:
         self._assert_platform(account, expected_platform)
         category_value = await self._category_value(account.platform, request.category)
-
-        if account.sync_status == 0:
-            self._telemetry.emit(
-                "publish_refresh_triggered",
-                account_id=account.id,
-                platform=account.platform,
-                version=account.cookie_version,
-                trigger="persisted",
-                retry_count=0,
-            )
-            return await self._refresh_and_publish(
-                account, request, category_value
-            )
-
-        try:
-            credentials = await self._cookie_store.load(account)
-        except LoginExpiredError:
-            self._telemetry.emit(
-                "publish_refresh_triggered",
-                account_id=account.id,
-                platform=account.platform,
-                version=account.cookie_version,
-                trigger="missing_credentials",
-                retry_count=0,
-            )
-            return await self._refresh_and_publish(
-                account, request, category_value
-            )
+        account, credentials = await self._ensure_credentials_before_publish(account)
 
         try:
             result = await self._publish_once(account, request, category_value, credentials)
@@ -221,20 +194,33 @@ class PublishOrchestrator:
                 raise
         return account.platform, result
 
-    async def _refresh_and_publish(
-        self,
-        account: MediumAccount,
-        request: BasePublishArticleRequest,
-        category_value: str | None,
-    ) -> tuple[str, PublishResult]:
-        refreshed_account, credentials = await self._refresh_credentials(account)
-        result = await self._publish_once(
-            refreshed_account,
-            request,
-            category_value,
-            credentials,
-        )
-        return refreshed_account.platform, result
+    async def _ensure_credentials_before_publish(
+        self, account: MediumAccount
+    ) -> tuple[MediumAccount, Credentials]:
+        if account.sync_status == 0:
+            self._telemetry.emit(
+                "publish_refresh_triggered",
+                account_id=account.id,
+                platform=account.platform,
+                version=account.cookie_version,
+                trigger="persisted",
+                retry_count=0,
+            )
+            return await self._refresh_credentials(account)
+
+        try:
+            credentials = await self._cookie_store.load(account)
+        except LoginExpiredError:
+            self._telemetry.emit(
+                "publish_refresh_triggered",
+                account_id=account.id,
+                platform=account.platform,
+                version=account.cookie_version,
+                trigger="missing_credentials",
+                retry_count=0,
+            )
+            return await self._refresh_credentials(account)
+        return account, credentials
 
     async def _refresh_then_retry(
         self,

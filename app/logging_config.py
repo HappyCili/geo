@@ -7,7 +7,7 @@ from typing import Final
 
 APP_LOGGER_NAME: Final = "app"
 CONSOLE_HANDLER_NAME: Final = "app.console"
-DEFAULT_LOG_LEVEL: Final = "INFO"
+DEFAULT_LOG_LEVEL: Final = "DEBUG"
 _LOG_LEVELS: Final = {
     "CRITICAL": logging.CRITICAL,
     "ERROR": logging.ERROR,
