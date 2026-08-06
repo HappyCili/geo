@@ -181,6 +181,11 @@ class HepanPublisher(ArticlePublisher):
                     )
                 if self._is_human_verification_response(edit_response):
                     raise CaptchaRequiredError("Hepan 发布请求需要验证码")
+                if edit_response.status_code == 403:
+                    raise LoginExpiredError(
+                        "Hepan 发布页访问被拒绝，登录态可能已失效",
+                        retry_safe=True,
+                    )
                 edit_response.raise_for_status()
                 formhash = self._parse_formhash(edit_response.content)
                 parts = self._build_parts(
