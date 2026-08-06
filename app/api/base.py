@@ -16,6 +16,7 @@ from app.errors import (
     PlatformFieldsValidationError,
     PlatformMismatchError,
     PublishError,
+    ProxyUnavailableError,
     PublisherConfigurationError,
     RefreshUnavailableError,
     UnsupportedPlatformError,
@@ -39,6 +40,8 @@ def http_error(error: PublishError) -> HTTPException:
         return HTTPException(status_code=422, detail=_detail("platform_mismatch", str(error)))
     if isinstance(error, CaptchaRequiredError):
         return HTTPException(status_code=409, detail=_detail("captcha_required", str(error)))
+    if isinstance(error, ProxyUnavailableError):
+        return HTTPException(status_code=409, detail=_detail("proxy_unavailable", str(error)))
     if isinstance(error, LoginExpiredError):
         return HTTPException(status_code=409, detail=_detail("login_expired", str(error)))
     if isinstance(error, (AccountUnavailableError,)):

@@ -17,6 +17,7 @@ from PIL import Image, ImageSequence
 
 from app.config import get_settings
 from app.domain import (
+    AccountProxy,
     Credentials,
     FieldControlType,
     FieldOption,
@@ -38,6 +39,7 @@ from app.api.platform.lieju.captcha_solver import (
 )
 from app.schemas import ContentType
 from app.utils.publisher_contract import ArticlePublisher
+from app.utils.proxy import httpx_client_kwargs
 
 
 BASE_URL = "https://post.lieju.com"
@@ -756,6 +758,7 @@ class LiejuPublisher(ArticlePublisher):
         self,
         image_urls: tuple[str, ...],
         image_slots: tuple[int, ...],
+        proxy: AccountProxy | None = None,
     ) -> tuple[_DownloadedImage, ...]:
         if not image_urls:
             return ()
@@ -774,6 +777,7 @@ class LiejuPublisher(ArticlePublisher):
                 },
                 timeout=self._timeout,
                 follow_redirects=True,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 return tuple(
                     [
@@ -803,6 +807,7 @@ class LiejuPublisher(ArticlePublisher):
         category: str,
         category_value: str,
         credentials: Credentials,
+        proxy: AccountProxy | None = None,
     ) -> PublishRequirements:
         category_url = self._category_url(category, category_value)
         try:
@@ -810,6 +815,7 @@ class LiejuPublisher(ArticlePublisher):
                 headers=self._headers(credentials, category_url),
                 timeout=self._timeout,
                 follow_redirects=True,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 form = await self._load_form(client, category_url)
         except httpx.HTTPError as error:
@@ -839,6 +845,7 @@ class LiejuPublisher(ArticlePublisher):
         content_type: ContentType,
         credentials: Credentials,
         platform_fields: Mapping[str, PlatformFieldValue],
+        proxy: AccountProxy | None = None,
     ) -> PublishResult:
         category_url = self._category_url(category, category_value)
         try:
@@ -846,6 +853,7 @@ class LiejuPublisher(ArticlePublisher):
                 headers=self._headers(credentials, category_url),
                 timeout=self._timeout,
                 follow_redirects=True,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 form = await self._load_form(client, category_url)
                 image_urls = _image_urls(content, content_type)
@@ -863,16 +871,27 @@ class LiejuPublisher(ArticlePublisher):
                             "请配置 LIEJU_TDC_DYNAMIC、TDC 画像模板和完整的 "
                             "LIEJU_CHAOJIYING_*"
                         )
-                    captcha = await self._captcha_solver.solve(
-                        category_url=category_url,
-                        form=form,
-                    )
+                    if proxy is None:
+                        captcha = await self._captcha_solver.solve(
+                            category_url=category_url,
+                            form=form,
+                        )
+                    else:
+                        captcha = await self._captcha_solver.solve(
+                            category_url=category_url,
+                            form=form,
+                            proxy=proxy,
+                        )
                     captcha_fields = (
                         ("atc_yzm", "1"),
                         ("postdb[ticket]", captcha.ticket),
                         ("postdb[randstr]", captcha.randstr),
                     )
-                images = await self._download_images(image_urls, form.image_slots)
+                images = await self._download_images(
+                    image_urls,
+                    form.image_slots,
+                    proxy,
+                )
                 fields = _payload_fields(
                     form,
                     title=title,

@@ -671,6 +671,7 @@ def submit_signin_with_retries(
     node_binary: str,
     timeout_seconds: float,
     body_output: Path | None,
+    proxy: str | None = None,
     client_factory: Callable[..., httpx.Client] = httpx.Client,
 ) -> dict[str, Any]:
     """Retry a rejected CAPTCHA with a fresh CNBlogs session and token."""
@@ -692,6 +693,7 @@ def submit_signin_with_retries(
                 headers=headers,
                 timeout=timeout_seconds,
                 follow_redirects=False,
+                **({"proxy": proxy} if proxy else {}),
             ) as client:
                 result = _submit_signin_attempt(
                     client,
@@ -821,6 +823,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 node_binary=args.node_binary,
                 timeout_seconds=args.timeout,
                 body_output=args.body_output,
+                proxy=os.environ.get("CNBLOGS_PROXY"),
             )
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0 if result["success"] else 1
@@ -830,7 +833,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "User-Agent": USER_AGENT,
         }
-        with httpx.Client(headers=headers, timeout=args.timeout, follow_redirects=False) as client:
+        with httpx.Client(
+            headers=headers,
+            timeout=args.timeout,
+            follow_redirects=False,
+            **(
+                {"proxy": os.environ["CNBLOGS_PROXY"]}
+                if os.environ.get("CNBLOGS_PROXY")
+                else {}
+            ),
+        ) as client:
             prepared = prepare_signin(client, return_url=args.return_url)
             captcha = placeholder_captcha(prepared.captcha_options)
             payload = build_login_payload(

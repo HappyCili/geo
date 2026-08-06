@@ -1,11 +1,24 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
 PlatformFieldValue = str | list[str]
 FieldControlType = Literal["text", "textarea", "select", "radio", "checkbox"]
+
+
+@dataclass(frozen=True)
+class AccountProxy:
+    """Validated proxy configuration bound to one media account."""
+
+    id: int
+    protocol: str
+    host: str
+    port: int
+    username: str = field(repr=False)
+    password: str = field(repr=False)
+    fingerprint: str
 
 
 @dataclass(frozen=True)
@@ -22,6 +35,13 @@ class MediumAccount:
     refresh_fence: int = 0
     refresh_result: str = "ready"
     refresh_code: str | None = None
+    proxy_id: int | None = None
+    proxy: AccountProxy | None = None
+    cookie_proxy_fingerprint: str | None = None
+
+    @property
+    def proxy_fingerprint(self) -> str | None:
+        return self.proxy.fingerprint if self.proxy is not None else None
 
 
 @dataclass(frozen=True)
@@ -43,6 +63,7 @@ class Credentials:
     cookie_header: str
     cookies: dict[str, str]
     session_id: str | None
+    proxy_fingerprint: str | None = None
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +14,7 @@ from app.errors import (
     LoginCredentialsUnavailableError,
     PersistenceUnavailableError,
 )
+from app.utils.proxy import build_account_proxy
 
 
 class AccountRepository:
@@ -21,16 +25,25 @@ class AccountRepository:
         row = (await self._session.execute(
             text(
                 """
-                SELECT id, platform, status, sync_status, `del`,
-                       cookie_version, refresh_fence, refresh_result, refresh_code,
+                SELECT a.id, a.platform, a.status, a.sync_status, a.`del`,
+                       a.cookie_version, a.refresh_fence, a.refresh_result, a.refresh_code,
+                       a.proxy_id, a.cookie_proxy_fingerprint,
+                       p.id AS resolved_proxy_id, p.protocol AS proxy_protocol,
+                       p.ip AS proxy_ip, p.port AS proxy_port,
+                       p.username AS proxy_username, p.password AS proxy_password,
                        CASE
-                           WHEN NULLIF(TRIM(COALESCE(cookie, '')), '') IS NOT NULL
-                             OR NULLIF(TRIM(COALESCE(cookies, '')), '') IS NOT NULL
+                           WHEN NULLIF(TRIM(COALESCE(a.cookie, '')), '') IS NOT NULL
+                             OR NULLIF(TRIM(COALESCE(a.cookies, '')), '') IS NOT NULL
                            THEN 1
                            ELSE 0
                        END AS cookie_material_available
-                FROM tb_medium_account
-                WHERE id = :account_id AND status = 1 AND `del` = 0
+                FROM tb_medium_account AS a
+                LEFT JOIN t_proxy_ips AS p
+                  ON p.id = a.proxy_id
+                 AND p.status = 1
+                 AND p.deleted = 0
+                 AND (p.expire_time IS NULL OR p.expire_time > CURRENT_TIMESTAMP)
+                WHERE a.id = :account_id AND a.status = 1 AND a.`del` = 0
                 """
             ),
             {"account_id": account_id},
@@ -44,41 +57,35 @@ class AccountRepository:
                 raise AccountNotFoundError("媒体账号不存在")
             raise AccountUnavailableError("媒体账号未启用或已删除")
 
-        account = MediumAccount(
-            id=int(row["id"]),
-            platform=str(row["platform"]),
-            status=int(row["status"]),
-            sync_status=(
-                int(row["sync_status"])
-                if int(row["cookie_material_available"])
-                else 0
-            ),
-            deleted=int(row["del"]),
-            cookie=None,
-            cookies=None,
-            session_id=None,
-            cookie_version=int(row["cookie_version"]),
-            refresh_fence=int(row["refresh_fence"]),
-            refresh_result=str(row["refresh_result"]),
-            refresh_code=row["refresh_code"],
-        )
-        await self._session.rollback()
-        return account
+        try:
+            return self._account_from_row(row, include_payload=False)
+        finally:
+            await self._session.rollback()
 
     async def get_with_payload(self, account_id: int) -> MediumAccount:
         row = (await self._session.execute(
             text(
                 """
-                SELECT id, platform, status, sync_status, `del`, cookie, cookies, session_id,
-                       cookie_version, refresh_fence, refresh_result, refresh_code,
+                SELECT a.id, a.platform, a.status, a.sync_status, a.`del`,
+                       a.cookie, a.cookies, a.session_id,
+                       a.cookie_version, a.refresh_fence, a.refresh_result, a.refresh_code,
+                       a.proxy_id, a.cookie_proxy_fingerprint,
+                       p.id AS resolved_proxy_id, p.protocol AS proxy_protocol,
+                       p.ip AS proxy_ip, p.port AS proxy_port,
+                       p.username AS proxy_username, p.password AS proxy_password,
                        CASE
-                           WHEN NULLIF(TRIM(COALESCE(cookie, '')), '') IS NOT NULL
-                             OR NULLIF(TRIM(COALESCE(cookies, '')), '') IS NOT NULL
+                           WHEN NULLIF(TRIM(COALESCE(a.cookie, '')), '') IS NOT NULL
+                             OR NULLIF(TRIM(COALESCE(a.cookies, '')), '') IS NOT NULL
                            THEN 1
                            ELSE 0
                        END AS cookie_material_available
-                FROM tb_medium_account
-                WHERE id = :account_id AND status = 1 AND `del` = 0
+                FROM tb_medium_account AS a
+                LEFT JOIN t_proxy_ips AS p
+                  ON p.id = a.proxy_id
+                 AND p.status = 1
+                 AND p.deleted = 0
+                 AND (p.expire_time IS NULL OR p.expire_time > CURRENT_TIMESTAMP)
+                WHERE a.id = :account_id AND a.status = 1 AND a.`del` = 0
                 """
             ),
             {"account_id": account_id},
@@ -91,26 +98,41 @@ class AccountRepository:
             if exists is None:
                 raise AccountNotFoundError("媒体账号不存在")
             raise AccountUnavailableError("媒体账号未启用或已删除")
-        account = MediumAccount(
+        try:
+            return self._account_from_row(row, include_payload=True)
+        finally:
+            await self._session.rollback()
+
+    @staticmethod
+    def _account_from_row(
+        row: Mapping[str, Any], *, include_payload: bool
+    ) -> MediumAccount:
+        proxy = build_account_proxy(row)
+        proxy_fingerprint = proxy.fingerprint if proxy is not None else None
+        cookie_material_available = int(row["cookie_material_available"])
+        cookie_proxy_fingerprint = row.get("cookie_proxy_fingerprint")
+        cookie_matches_proxy = cookie_proxy_fingerprint == proxy_fingerprint
+        return MediumAccount(
             id=int(row["id"]),
             platform=str(row["platform"]),
             status=int(row["status"]),
             sync_status=(
                 int(row["sync_status"])
-                if int(row["cookie_material_available"])
+                if cookie_material_available and cookie_matches_proxy
                 else 0
             ),
             deleted=int(row["del"]),
-            cookie=row["cookie"],
-            cookies=row["cookies"],
-            session_id=row["session_id"],
+            cookie=row["cookie"] if include_payload else None,
+            cookies=row["cookies"] if include_payload else None,
+            session_id=row["session_id"] if include_payload else None,
             cookie_version=int(row["cookie_version"]),
             refresh_fence=int(row["refresh_fence"]),
             refresh_result=str(row["refresh_result"]),
             refresh_code=row["refresh_code"],
+            proxy_id=row.get("proxy_id"),
+            proxy=proxy,
+            cookie_proxy_fingerprint=cookie_proxy_fingerprint,
         )
-        await self._session.rollback()
-        return account
 
     async def get_login_secret(self, account_id: int) -> LoginSecret:
         row = (await self._session.execute(
@@ -168,6 +190,7 @@ class AccountRepository:
         cookie_header: str,
         cookies: str,
         session_id: str | None,
+        proxy_fingerprint: str | None = None,
     ) -> int | None:
         try:
             result = await self._session.execute(
@@ -176,7 +199,8 @@ class AccountRepository:
                     UPDATE tb_medium_account
                     SET cookie = :cookie_header, cookies = :cookies, session_id = :session_id,
                         sync_status = 1, cookie_version = cookie_version + 1,
-                        refresh_result = 'ready', refresh_code = NULL
+                        refresh_result = 'ready', refresh_code = NULL,
+                        cookie_proxy_fingerprint = :proxy_fingerprint
                     WHERE id = :account_id AND cookie_version = :observed_version
                       AND refresh_fence = :fence
                     """
@@ -188,6 +212,7 @@ class AccountRepository:
                     "cookie_header": cookie_header,
                     "cookies": cookies,
                     "session_id": session_id,
+                    "proxy_fingerprint": proxy_fingerprint,
                 },
             )
             if result.rowcount != 1:
@@ -219,7 +244,8 @@ class AccountRepository:
                     UPDATE tb_medium_account
                     SET cookie = NULL, cookies = NULL, session_id = NULL,
                         sync_status = 0, cookie_version = cookie_version + 1,
-                        refresh_result = :result, refresh_code = :code
+                        refresh_result = :result, refresh_code = :code,
+                        cookie_proxy_fingerprint = NULL
                     WHERE id = :account_id AND cookie_version = :observed_version
                       AND refresh_fence = :fence
                     """

@@ -64,4 +64,5 @@ def get_credentials(account: MediumAccount) -> Credentials:
         cookie_header=cookie_header,
         cookies=parsed,
         session_id=account.session_id.strip() if account.session_id else None,
+        proxy_fingerprint=account.proxy_fingerprint,
     )

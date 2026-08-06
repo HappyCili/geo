@@ -9,7 +9,7 @@ import markdown
 from lxml import html as lxml_html
 
 from app.config import get_settings
-from app.domain import Credentials, PlatformFieldValue, PublishResult
+from app.domain import AccountProxy, Credentials, PlatformFieldValue, PublishResult
 from app.errors import (
     CaptchaRequiredError,
     LoginExpiredError,
@@ -17,6 +17,7 @@ from app.errors import (
     UpstreamPublishError,
 )
 from app.utils.publisher_contract import ArticlePublisher
+from app.utils.proxy import httpx_client_kwargs
 from app.schemas import ContentType
 
 
@@ -150,6 +151,7 @@ class HepanPublisher(ArticlePublisher):
         content_type: ContentType,
         credentials: Credentials,
         platform_fields: Mapping[str, PlatformFieldValue],
+        proxy: AccountProxy | None = None,
     ) -> PublishResult:
         category_id = category_value.strip()
         if not category_id or "," in category_id:
@@ -165,6 +167,7 @@ class HepanPublisher(ArticlePublisher):
                 headers=headers,
                 cookies=credentials.cookies,
                 timeout=self._timeout,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 edit_response = await self.request(
                     "GET", PUBLISH_URL, params=params, _client=client
@@ -181,11 +184,6 @@ class HepanPublisher(ArticlePublisher):
                     )
                 if self._is_human_verification_response(edit_response):
                     raise CaptchaRequiredError("Hepan 发布请求需要验证码")
-                if edit_response.status_code == 403:
-                    raise LoginExpiredError(
-                        "Hepan 发布页访问被拒绝，登录态可能已失效",
-                        retry_safe=True,
-                    )
                 edit_response.raise_for_status()
                 formhash = self._parse_formhash(edit_response.content)
                 parts = self._build_parts(

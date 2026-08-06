@@ -273,10 +273,12 @@ class PublishOrchestrator:
         category_value = await self._category_value(account.platform, category)
         credentials = await self._cookie_store.load(account)
         publisher = self._registry.get(account.platform)
+        proxy_kwargs = {"proxy": account.proxy} if account.proxy is not None else {}
         requirements = await publisher.get_requirements(
             category=category,
             category_value=category_value,
             credentials=credentials,
+            **proxy_kwargs,
         )
         return account.platform, requirements
 
@@ -298,6 +300,7 @@ class PublishOrchestrator:
         credentials: Credentials,
     ) -> PublishResult:
         publisher = self._registry.get(account.platform)
+        proxy_kwargs = {"proxy": account.proxy} if account.proxy is not None else {}
         return await publisher.publish_article(
             title=request.title,
             category=request.category,
@@ -306,6 +309,7 @@ class PublishOrchestrator:
             content_type=request.content_type,
             credentials=credentials,
             platform_fields=request.platform_fields,
+            **proxy_kwargs,
         )
 
     async def _category_value(self, platform: str, category: str | None) -> str | None:

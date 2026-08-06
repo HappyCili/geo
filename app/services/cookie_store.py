@@ -53,6 +53,7 @@ class CookieStore:
                         isinstance(record, dict)
                         and record.get("version") == account.cookie_version
                         and record.get("result") == "ready"
+                        and record.get("proxy_fingerprint") == account.proxy_fingerprint
                         and self._valid_cookie_map(record.get("cookies"))
                         and isinstance(record.get("cookie_header"), str)
                         and bool(record.get("cookie_header"))
@@ -67,6 +68,7 @@ class CookieStore:
                             cookie_header=record["cookie_header"],
                             cookies=record["cookies"],
                             session_id=record.get("session_id"),
+                            proxy_fingerprint=record.get("proxy_fingerprint"),
                         )
                 fallback_reason = "redis_miss_or_version_mismatch"
             except Exception as error:
@@ -91,6 +93,8 @@ class CookieStore:
             source = await self._payload_loader(account.id)
             if source.cookie_version != account.cookie_version:
                 raise LoginExpiredError("媒体账号 Cookie 版本已变化")
+            if source.cookie_proxy_fingerprint != account.proxy_fingerprint:
+                raise LoginExpiredError("媒体账号代理已变化，需要刷新登录态")
             if source.sync_status != 1 or source.refresh_result != "ready":
                 raise LoginExpiredError("媒体账号登录态已过期")
         try:
@@ -126,6 +130,7 @@ class CookieStore:
             "version": version,
             "result": "ready",
             "code": None,
+            "proxy_fingerprint": credentials.proxy_fingerprint,
             "cookie_header": credentials.cookie_header,
             "cookies": credentials.cookies,
             "session_id": credentials.session_id,

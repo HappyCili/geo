@@ -9,9 +9,10 @@ from urllib.parse import unquote
 import httpx
 
 from app.config import get_settings
-from app.domain import Credentials, PlatformFieldValue, PublishResult
+from app.domain import AccountProxy, Credentials, PlatformFieldValue, PublishResult
 from app.errors import LoginExpiredError, PublisherConfigurationError, UpstreamPublishError
 from app.utils.publisher_contract import ArticlePublisher
+from app.utils.proxy import httpx_client_kwargs
 from app.schemas import ContentType
 
 
@@ -108,6 +109,7 @@ class CnblogsPublisher(ArticlePublisher):
         content_type: ContentType,
         credentials: Credentials,
         platform_fields: Mapping[str, PlatformFieldValue],
+        proxy: AccountProxy | None = None,
     ) -> PublishResult:
         payload = {
             "id": None,
@@ -156,7 +158,9 @@ class CnblogsPublisher(ArticlePublisher):
         }
         try:
             async with self._client_factory(
-                headers=self._headers(credentials), timeout=self._timeout
+                headers=self._headers(credentials),
+                timeout=self._timeout,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 response = await self.request("POST", API_URL, json=payload, _client=client)
                 if (

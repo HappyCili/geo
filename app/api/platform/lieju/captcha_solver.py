@@ -26,9 +26,11 @@ from urllib.parse import quote, urlencode, urljoin
 import httpx
 
 from app.config import Settings, get_settings
+from app.domain import AccountProxy
 from app.errors import PublisherConfigurationError, UpstreamPublishError
 from app.api.platform.lieju.tdc_runtime import encode_tdc_payload
 from app.utils.request import BaseRequest
+from app.utils.proxy import httpx_client_kwargs, playwright_client_kwargs
 
 
 USER_AGENT = (
@@ -54,6 +56,7 @@ class LiejuCaptchaSolver(Protocol):
         *,
         category_url: str,
         form: CaptchaForm,
+        proxy: AccountProxy | None = None,
     ) -> LiejuCaptchaTicket: ...
 
 
@@ -962,6 +965,7 @@ class LiejuBrowserCaptchaFlow(BaseRequest):
         *,
         category_url: str,
         form: CaptchaForm,
+        proxy: AccountProxy | None = None,
     ) -> LiejuCaptchaTicket:
         try:
             from playwright.async_api import Error as PlaywrightError
@@ -975,6 +979,7 @@ class LiejuBrowserCaptchaFlow(BaseRequest):
             "headless": self._headless,
             "args": ["--disable-blink-features=AutomationControlled"],
         }
+        launch_options.update(playwright_client_kwargs(proxy))
         if self._executable_path is not None:
             launch_options["executable_path"] = str(self._executable_path)
         appid = form.captcha_appid or "2060609993"
@@ -990,6 +995,7 @@ class LiejuBrowserCaptchaFlow(BaseRequest):
                 async with self._client_factory(
                     timeout=self._timeout_seconds,
                     follow_redirects=True,
+                    **httpx_client_kwargs(proxy),
                 ) as recognition_client:
                     for attempt in range(self._captcha_max_attempts):
                         cause: BaseException | None = None
@@ -1376,11 +1382,13 @@ class LiejuPurePythonCaptchaFlow(BaseRequest):
         *,
         category_url: str,
         form: CaptchaForm,
+        proxy: AccountProxy | None = None,
     ) -> LiejuCaptchaTicket:
         try:
             async with self._client_factory(
                 timeout=self._request_timeout_seconds,
                 follow_redirects=True,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 headers = self._captcha_headers(category_url)
                 prehandle_url = self._prehandle_url(category_url, form)

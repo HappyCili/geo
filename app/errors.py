@@ -13,6 +13,10 @@ class AccountUnavailableError(PublishError):
     pass
 
 
+class ProxyUnavailableError(AccountUnavailableError):
+    pass
+
+
 class LoginCredentialsUnavailableError(AccountUnavailableError):
     pass
 

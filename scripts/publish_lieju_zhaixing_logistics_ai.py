@@ -20,9 +20,6 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from sqlalchemy import text
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -31,6 +28,7 @@ from app.credentials import get_credentials
 from app.db import SessionLocal
 from app.domain import MediumAccount
 from app.api.platform.lieju.article_publisher import LiejuPublisher
+from app.repositories import AccountRepository
 from app.schemas import ContentType
 
 
@@ -76,32 +74,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 async def load_account(account_id: int) -> MediumAccount:
     async with SessionLocal() as session:
-        row = (
-            await session.execute(
-                text(
-                    """
-                    SELECT id, platform, status, sync_status, `del`, cookie, cookies, session_id
-                    FROM tb_medium_account
-                    WHERE id = :account_id
-                    """
-                ),
-                {"account_id": account_id},
-            )
-        ).mappings().one_or_none()
-    if row is None:
-        raise RuntimeError(f"Lieju account {account_id} was not found")
-    account = MediumAccount(
-        id=row["id"],
-        platform=row["platform"],
-        status=row["status"],
-        sync_status=row["sync_status"],
-        deleted=row["del"],
-        cookie=row["cookie"],
-        cookies=row["cookies"],
-        session_id=row["session_id"],
-    )
+        account = await AccountRepository(session).get_with_payload(account_id)
     if account.platform != "lieju" or account.status != 1 or account.deleted != 0:
         raise RuntimeError(f"account {account_id} is not an active Lieju account")
+    if (
+        account.proxy is not None
+        and account.cookie_proxy_fingerprint != account.proxy_fingerprint
+    ):
+        raise RuntimeError("account Cookie was not generated through its current proxy")
     return account
 
 
@@ -128,6 +108,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         category=CATEGORY,
         category_value=CATEGORY_VALUE,
         credentials=credentials,
+        proxy=account.proxy,
     )
     summary: dict[str, object] = {
         "mode": "publish" if args.publish else "validate",
@@ -151,6 +132,7 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
         content_type=ContentType.MARKDOWN,
         credentials=credentials,
         platform_fields=fields,
+        proxy=account.proxy,
     )
     summary.update(
         success=result.success,

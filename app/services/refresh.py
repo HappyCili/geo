@@ -129,6 +129,14 @@ class RefreshCoordinator:
                     code=current.refresh_code,
                 )
                 return await self._shared_result(current)
+            # Refresh only transport state from the latest snapshot so a proxy
+            # binding change cannot authenticate through the old proxy.
+            account = replace(
+                account,
+                proxy_id=current.proxy_id,
+                proxy=current.proxy,
+                cookie_proxy_fingerprint=current.cookie_proxy_fingerprint,
+            )
             fence = await self._accounts.claim_refresh(account.id, account.cookie_version)
             if fence is None:
                 self._telemetry.emit(
@@ -167,7 +175,9 @@ class RefreshCoordinator:
             login = self._login_for_platform(account.platform)
             if login is None:
                 return await self._persist_failure(account, fence, "refresh_unavailable")
-            login_task = asyncio.create_task(login.login(secret))
+            login_task = asyncio.create_task(
+                self._login_with_account_proxy(login, secret, account)
+            )
             lost_task = asyncio.create_task(lost.wait())
             done, _ = await asyncio.wait({login_task, lost_task}, return_when=asyncio.FIRST_COMPLETED)
             if lost_task in done:
@@ -204,14 +214,25 @@ class RefreshCoordinator:
             if result.kind != "success" or result.cookies is None or result.cookie_header is None:
                 return await self._persist_failure(account, fence, result.kind)
             serialized = json.dumps(result.cookies, separators=(",", ":"))
-            version = await self._accounts.save_login(
-                account.id,
-                account.cookie_version,
-                fence,
-                cookie_header=result.cookie_header,
-                cookies=serialized,
-                session_id=result.session_id,
-            )
+            if account.proxy is None:
+                version = await self._accounts.save_login(
+                    account.id,
+                    account.cookie_version,
+                    fence,
+                    cookie_header=result.cookie_header,
+                    cookies=serialized,
+                    session_id=result.session_id,
+                )
+            else:
+                version = await self._accounts.save_login(
+                    account.id,
+                    account.cookie_version,
+                    fence,
+                    cookie_header=result.cookie_header,
+                    cookies=serialized,
+                    session_id=result.session_id,
+                    proxy_fingerprint=account.proxy_fingerprint,
+                )
             if version is None:
                 self._telemetry.emit(
                     "refresh_save_not_owned",
@@ -221,7 +242,12 @@ class RefreshCoordinator:
                     fence=fence,
                 )
                 return await self._shared_result(await self._accounts.get_active(account.id))
-            credentials = Credentials(result.cookie_header, result.cookies, result.session_id)
+            credentials = Credentials(
+                result.cookie_header,
+                result.cookies,
+                result.session_id,
+                account.proxy_fingerprint,
+            )
             await self._cookies.write_ready(
                 account.id,
                 version,
@@ -238,6 +264,7 @@ class RefreshCoordinator:
                 refresh_fence=fence,
                 refresh_result="ready",
                 refresh_code=None,
+                cookie_proxy_fingerprint=account.proxy_fingerprint,
             )
             self._telemetry.emit(
                 "refresh_ready",
@@ -271,6 +298,16 @@ class RefreshCoordinator:
         if isinstance(self._login, Mapping):
             return self._login.get(platform)
         return self._login
+
+    @staticmethod
+    async def _login_with_account_proxy(
+        login: LoginProvider,
+        secret: LoginSecret,
+        account: MediumAccount,
+    ) -> LoginResult:
+        if account.proxy is None:
+            return await login.login(secret)
+        return await login.login(secret, proxy=account.proxy)
 
     async def _renew(self, account: MediumAccount, token: str, lost: asyncio.Event) -> None:
         while True:

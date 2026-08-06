@@ -37,6 +37,17 @@ HMAC 密钥。DEBUG 请求日志会按原文记录 URL、headers、body 和上�
 服务会预热 `post.lieju.com` 的发布域，将 `lieju_passport`、认证 Cookie 与发布域 WAF Cookie
 一起写回 MySQL 和 Redis。Lieju 不使用环境变量凭据回退。
 
+## 账号代理
+
+当 `tb_medium_account.proxy_id` 为空时，账号请求保持现有直连行为；非空时服务读取
+`t_proxy_ips` 中状态有效、未删除且未过期的 HTTP/HTTPS 代理。登录刷新、发布、Lieju 动态表单、
+图片和验证码请求都会使用同一代理。绑定代理不存在、失效、过期或配置格式错误时，接口返回
+`409 proxy_unavailable`，不会回退直连。
+
+部署代理功能前由 DBA 执行
+[`sql/migrations/20260806_account_proxy_cookie.sql`](sql/migrations/20260806_account_proxy_cookie.sql)。
+迁移记录 Cookie 生成时的代理指纹；代理地址或认证信息变更后，服务会刷新登录态而不复用旧 Cookie。
+
 执行 [schema/tb_medium_platform_category.sql](schema/tb_medium_platform_category.sql)，并为每个平台维护分类记录。例如：
 
 ```sql

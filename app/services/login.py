@@ -17,8 +17,9 @@ import httpx
 from lxml import etree
 from lxml import html as lxml_html
 
-from app.domain import LoginResult, LoginSecret
+from app.domain import AccountProxy, LoginResult, LoginSecret
 from app.utils.request import BaseRequest
+from app.utils.proxy import httpx_client_kwargs, httpx_proxy_url
 
 
 HEPAN_BASE_URL = "https://www.hepan.com"
@@ -65,7 +66,11 @@ async def _send_logged_request(
 
 
 class LoginProvider(Protocol):
-    async def login(self, secret: LoginSecret) -> LoginResult:
+    async def login(
+        self,
+        secret: LoginSecret,
+        proxy: AccountProxy | None = None,
+    ) -> LoginResult:
         """通过受控边界执行一次登录。"""
 
 
@@ -147,12 +152,17 @@ class LiejuLoginProvider:
         self._entry_url = entry_url
         self._publish_warmup_url = publish_warmup_url
 
-    async def login(self, secret: LoginSecret) -> LoginResult:
+    async def login(
+        self,
+        secret: LoginSecret,
+        proxy: AccountProxy | None = None,
+    ) -> LoginResult:
         try:
             async with self._client_factory(
                 headers={"User-Agent": LIEJU_USER_AGENT},
                 timeout=self._timeout_seconds,
                 follow_redirects=True,
+                **httpx_client_kwargs(proxy),
             ) as client:
                 entry_page = await self._load_page(client, self._entry_url)
                 if entry_page is None:
@@ -373,20 +383,29 @@ class HepanLoginProvider:
         self._client_factory = client_factory or httpx.AsyncClient
         self._requester = BaseRequest()
 
-    async def login(self, secret: LoginSecret) -> LoginResult:
+    async def login(
+        self,
+        secret: LoginSecret,
+        proxy: AccountProxy | None = None,
+    ) -> LoginResult:
         try:
             return await asyncio.wait_for(
-                self._login_with_session(secret),
+                self._login_with_session(secret, proxy),
                 timeout=self._timeout_seconds,
             )
         except (asyncio.TimeoutError, httpx.RequestError):
             return LoginResult("network_error")
 
-    async def _login_with_session(self, secret: LoginSecret) -> LoginResult:
+    async def _login_with_session(
+        self,
+        secret: LoginSecret,
+        proxy: AccountProxy | None = None,
+    ) -> LoginResult:
         async with self._client_factory(
             headers={"User-Agent": HEPAN_USER_AGENT},
             timeout=self._request_timeout_seconds,
             follow_redirects=True,
+            **httpx_client_kwargs(proxy),
         ) as client:
             page, challenge_required = await self._load_login_page(client)
             if challenge_required:
@@ -640,7 +659,11 @@ class CnblogsLoginProvider:
         self._project_root = Path(__file__).resolve().parents[2]
         self._script = self._project_root / "scripts" / "cnblogs_signin.py"
 
-    async def login(self, secret: LoginSecret) -> LoginResult:
+    async def login(
+        self,
+        secret: LoginSecret,
+        proxy: AccountProxy | None = None,
+    ) -> LoginResult:
         try:
             process = await asyncio.create_subprocess_exec(
                 sys.executable,
@@ -650,7 +673,7 @@ class CnblogsLoginProvider:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=None,
-                env=self._child_environment(),
+                env=self._child_environment(proxy),
                 cwd=str(self._project_root),
                 start_new_session=True,
             )
@@ -700,15 +723,18 @@ class CnblogsLoginProvider:
             for name, cookie_value in value.items()
         )
 
-    def _child_environment(self) -> dict[str, str]:
+    def _child_environment(self, proxy: AccountProxy | None = None) -> dict[str, str]:
         environment = os.environ.copy()
         environment.pop("CNBLOGS_PASSWORD", None)
         environment.pop("CNBLOGS_USERNAME", None)
+        environment.pop("CNBLOGS_PROXY", None)
         existing_python_path = environment.get("PYTHONPATH")
         python_path_entries = [str(self._project_root)]
         if existing_python_path:
             python_path_entries.append(existing_python_path)
         environment["PYTHONPATH"] = os.pathsep.join(python_path_entries)
+        if proxy is not None:
+            environment["CNBLOGS_PROXY"] = httpx_proxy_url(proxy)
         return environment
 
     async def _terminate_and_reap(self, process: asyncio.subprocess.Process) -> None:
