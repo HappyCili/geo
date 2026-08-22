@@ -1,0 +1,36 @@
+services:
+  publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: media-publisher:latest
+    container_name: media-publisher
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - app-network
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  app-network:
+    driver: bridge
