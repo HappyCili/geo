@@ -227,12 +227,14 @@ curl -X POST 'http://127.0.0.1:8002/hepan/articles/publish' \
 | --- | --- | --- |
 | `404` | `account_not_found` | 媒体账号不存在 |
 | `409` | `account_unavailable` | 账号未启用或已删除 |
+| `409` | `login_failed` | 已执行登录但 Hepan 未接受账号密码 |
 | `409` | `login_expired` | Cookie 无效、未配置 Cookie，或刷新后登录态仍失效 |
 | `409` | `captcha_required` | 登录刷新被 Hepan 要求验证码 |
+| `429` | `publish_limit_reached` | Hepan 账号已达到文章发布额度 |
 | `422` | `platform_mismatch` | 账号不是 Hepan 账号 |
 | `422` | `invalid_request` | 未配置分类、分类 ID 为空/包含逗号，或发布器配置不满足约束 |
 | `422` | 标准校验错误 | 参数缺失、类型不匹配、字符串为空/超长或 `content_type` 非法 |
-| `502` | `upstream_publish_error` | Hepan 请求失败、缺少 `formhash` 或上游未确认发布成功 |
+| `502` | `upstream_publish_error` | Hepan 请求失败或上游未确认发布成功 |
 | `502` | `login_network_error` | 登录刷新网络失败 |
 | `502` | `login_protocol_error` | 登录刷新响应格式无效 |
 | `503` | `refresh_unavailable` | Redis 刷新锁或刷新等待不可用 |
@@ -267,7 +269,7 @@ curl -X POST 'http://127.0.0.1:8002/hepan/articles/publish' \
 | `test_hepan_markdown_content_is_converted_to_html` | Markdown 转 HTML5 | multipart 的 `content` 为转换后的 HTML |
 | `test_hepan_html_content_is_submitted_unchanged` | HTML 内容透传 | multipart 的 `content` 与输入完全一致 |
 | `test_hepan_rejects_multiple_category_ids` | 单分类 ID 约束 | 抛出配置错误且不发起上游请求 |
-| `test_hepan_requires_formhash_before_publish` | 表单令牌解析 | 缺少 `formhash` 返回上游发布错误 |
+| `test_hepan_requires_formhash_before_publish` | 表单令牌解析 | 缺少 `formhash` 触发登录态刷新；刷新后仍缺失时返回登录态过期 |
 | `test_hepan_login_redirect_is_reported_as_expired` | 登录重定向识别 | 返回登录态过期错误 |
 | `test_hepan_unsuccessful_result_is_not_reported_as_success` | 成功文案校验 | 未出现“发布文章成功”时返回上游发布错误 |
 | `test_hepan_publish_route_returns_response_contract` | 对外 POST 合约 | 返回 `platform/success/http_status/article_url/message` |

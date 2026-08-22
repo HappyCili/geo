@@ -13,6 +13,7 @@ from app.domain import AccountProxy, Credentials, PlatformFieldValue, PublishRes
 from app.errors import (
     CaptchaRequiredError,
     LoginExpiredError,
+    PublishLimitError,
     PublisherConfigurationError,
     UpstreamPublishError,
 )
@@ -25,6 +26,7 @@ BASE_URL = "https://www.hepan.com"
 PUBLISH_URL = f"{BASE_URL}/portal.php"
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36"
 HUMAN_VERIFICATION_MARKER = "宝塔防火墙正在检查您的访问"
+PUBLISH_LIMIT_MARKERS = ("只能发布", "发布上限", "发布数量已达上限")
 
 
 class HepanPublisher(ArticlePublisher):
@@ -45,7 +47,12 @@ class HepanPublisher(ArticlePublisher):
         document = lxml_html.fromstring(raw_html.decode("utf-8", errors="replace"))
         values = document.xpath("//form[@id='articleform']//input[@name='formhash']/@value")
         if not values or not values[0]:
-            raise UpstreamPublishError("Hepan 未返回发布令牌，登录态可能已过期")
+            # The token is read before the article POST, so retrying after a
+            # credential refresh cannot create a duplicate article.
+            raise LoginExpiredError(
+                "Hepan 未返回发布令牌，登录态可能已过期",
+                retry_safe=True,
+            )
         return str(values[0])
 
     @staticmethod
@@ -79,6 +86,11 @@ class HepanPublisher(ArticlePublisher):
         if not message:
             return None
         return message.replace(title, "<submitted-title>")[:200]
+
+    @staticmethod
+    def _is_publish_limit_response(raw_html: bytes) -> bool:
+        response_text = raw_html.decode("utf-8", errors="replace")
+        return any(marker in response_text for marker in PUBLISH_LIMIT_MARKERS)
 
     @staticmethod
     def _parse_result(raw_html: bytes, response_url: str) -> tuple[bool, str | None, str]:
@@ -184,6 +196,13 @@ class HepanPublisher(ArticlePublisher):
                     )
                 if self._is_human_verification_response(edit_response):
                     raise CaptchaRequiredError("Hepan 发布请求需要验证码")
+                if self._is_publish_limit_response(edit_response.content):
+                    raise PublishLimitError("Hepan 发布数量已达上限")
+                if edit_response.status_code == 403:
+                    raise LoginExpiredError(
+                        "Hepan 发布页访问被拒绝，登录态可能已失效",
+                        retry_safe=True,
+                    )
                 edit_response.raise_for_status()
                 formhash = self._parse_formhash(edit_response.content)
                 parts = self._build_parts(
@@ -208,6 +227,8 @@ class HepanPublisher(ArticlePublisher):
                     raise LoginExpiredError("Hepan 登录态已过期")
                 if self._is_human_verification_response(publish_response):
                     raise CaptchaRequiredError("Hepan 发布请求需要验证码")
+                if self._is_publish_limit_response(publish_response.content):
+                    raise PublishLimitError("Hepan 发布数量已达上限")
                 publish_response.raise_for_status()
         except LoginExpiredError:
             raise

@@ -67,8 +67,9 @@ POST /hepan/articles/publish
 1. 获得锁的请求读取当前账号、声明数据库 refresh fence，并从 `account` / `password` 获取登录凭据；
 2. 其他请求等待刷新结果，不会并发提交相同账号的登录请求；
 3. 登录成功后，数据库写入新的 Cookie、`session_id`、递增 `cookie_version`，再写入 Redis；
-4. 刷新失败时，数据库和 Redis 记录失败结果。`network_error` 映射为 `login_network_error`，
-   解析不到预期页面/响应格式映射为 `login_protocol_error`；
+4. 刷新失败时，数据库和 Redis 记录失败结果。登录本身失败时会在持有刷新锁期间再尝试一次，第二次仍失败
+   返回 `login_failed`；已有 Cookie 在发布重试时仍然失效才返回 `login_expired`。`network_error` 映射为
+   `login_network_error`，解析不到预期页面/响应格式映射为 `login_protocol_error`；
 5. 刷新获得新 Cookie 后，当前发布请求使用新 Cookie 再执行一次发布。运行时发现登录态过期时，
    仅在该发布操作可安全重试的情况下执行一次“刷新后重试”。
 
@@ -224,7 +225,12 @@ env | rg '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|NO_PROXY|SSL_CERT_FILE|SSL_CERT_DIR
 
 登录成功并不等于文章提交已确认成功。发布器会先读取文章编辑表单的 `formhash`，再提交 multipart 表单，
 最后检查成功文案或编辑链接。发生该错误时应查看脱敏后的页面失败提示、HTTP 状态码和响应 URL，
-并确认分类 ID 与账号发布权限，而不是仅检查登录 Cookie。
+并确认分类 ID 与账号发布权限，而不是仅检查登录 Cookie。编辑表单在发布 POST 之前缺少 `formhash` 时，
+服务会将其视为可安全重试的登录态失效，先刷新登录态并完整重试一次；刷新后仍缺少令牌时才返回
+`login_expired`。
+
+如果发布响应包含“只能发布 N 篇文章”等额度提示，服务会返回 `429 publish_limit_reached`，
+这表示账号额度已耗尽，不会触发登录刷新。
 
 ## 验证清单
 

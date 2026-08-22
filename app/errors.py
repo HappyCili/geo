@@ -35,6 +35,10 @@ class LoginExpiredError(CredentialError):
         self.retry_safe = retry_safe
 
 
+class LoginFailedError(CredentialError):
+    """账号密码登录已执行，但上游未接受登录。"""
+
+
 class PlatformMismatchError(PublishError):
     pass
 
@@ -82,6 +86,10 @@ class CaptchaRequiredError(PublishError):
     pass
 
 
+class PublishLimitError(PublishError):
+    """上游账号已达到文章发布额度。"""
+
+
 class UpstreamPublishError(PublishError):
     def __init__(self, message: str, upstream_status: int | None = None) -> None:
         super().__init__(message)
@@ -93,6 +101,8 @@ def http_status_for_error(error: PublishError) -> int:
         return 404
     if isinstance(error, (AccountUnavailableError, CredentialError, CaptchaRequiredError)):
         return 409
+    if isinstance(error, PublishLimitError):
+        return 429
     if isinstance(error, (CategoryNotFoundError, PublisherConfigurationError, PlatformMismatchError)):
         return 422
     if isinstance(error, (RefreshUnavailableError, PersistenceUnavailableError)):

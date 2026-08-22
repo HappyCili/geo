@@ -212,6 +212,7 @@ curl -X POST "http://127.0.0.1:8000/lieju/articles/publish" \
 | --- | --- | --- |
 | `404` | `account_not_found` | 媒体账号不存在 |
 | `409` | `account_unavailable` | 账号未启用或已删除 |
+| `409` | `login_failed` | 已执行登录但烈举未接受账号密码 |
 | `409` | `login_expired` | 账号登录态已过期 |
 | `409` | `captcha_required` | 当前表单需要验证码且服务未具备处理条件 |
 | `422` | `platform_mismatch` | 账号平台不是 `lieju` |

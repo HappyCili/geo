@@ -10,11 +10,13 @@ from app.errors import (
     CaptchaRequiredError,
     CategoryNotFoundError,
     LoginExpiredError,
+    LoginFailedError,
     LoginNetworkError,
     LoginProtocolError,
     PersistenceUnavailableError,
     PlatformFieldsValidationError,
     PlatformMismatchError,
+    PublishLimitError,
     PublishError,
     ProxyUnavailableError,
     PublisherConfigurationError,
@@ -42,8 +44,12 @@ def http_error(error: PublishError) -> HTTPException:
         return HTTPException(status_code=409, detail=_detail("captcha_required", str(error)))
     if isinstance(error, ProxyUnavailableError):
         return HTTPException(status_code=409, detail=_detail("proxy_unavailable", str(error)))
+    if isinstance(error, LoginFailedError):
+        return HTTPException(status_code=409, detail=_detail("login_failed", str(error)))
     if isinstance(error, LoginExpiredError):
         return HTTPException(status_code=409, detail=_detail("login_expired", str(error)))
+    if isinstance(error, PublishLimitError):
+        return HTTPException(status_code=429, detail=_detail("publish_limit_reached", str(error)))
     if isinstance(error, (AccountUnavailableError,)):
         return HTTPException(status_code=409, detail=_detail("account_unavailable", str(error)))
     if isinstance(error, PlatformFieldsValidationError):

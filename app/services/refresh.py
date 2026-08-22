@@ -14,6 +14,7 @@ from app.errors import (
     LoginProtocolError,
     LoginCredentialsUnavailableError,
     LoginExpiredError,
+    LoginFailedError,
     RefreshUnavailableError,
 )
 from app.repositories import AccountRepository
@@ -175,42 +176,58 @@ class RefreshCoordinator:
             login = self._login_for_platform(account.platform)
             if login is None:
                 return await self._persist_failure(account, fence, "refresh_unavailable")
-            login_task = asyncio.create_task(
-                self._login_with_account_proxy(login, secret, account)
-            )
             lost_task = asyncio.create_task(lost.wait())
-            done, _ = await asyncio.wait({login_task, lost_task}, return_when=asyncio.FIRST_COMPLETED)
-            if lost_task in done:
-                login_task.cancel()
-                await asyncio.gather(login_task, return_exceptions=True)
+            login_attempt = 0
+            while True:
+                login_task = asyncio.create_task(
+                    self._login_with_account_proxy(login, secret, account)
+                )
+                done, _ = await asyncio.wait(
+                    {login_task, lost_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if lost_task in done:
+                    login_task.cancel()
+                    await asyncio.gather(login_task, return_exceptions=True)
+                    self._telemetry.emit(
+                        "refresh_lease_lost",
+                        account_id=account.id,
+                        platform=account.platform,
+                        version=account.cookie_version,
+                        fence=fence,
+                    )
+                    raise RefreshUnavailableError("刷新锁租约已失效")
+                if lost.is_set():
+                    self._telemetry.emit(
+                        "refresh_lease_lost",
+                        account_id=account.id,
+                        platform=account.platform,
+                        version=account.cookie_version,
+                        fence=fence,
+                    )
+                    raise RefreshUnavailableError("刷新锁租约已失效")
+                result = login_task.result()
                 self._telemetry.emit(
-                    "refresh_lease_lost",
+                    "refresh_login_completed",
                     account_id=account.id,
                     platform=account.platform,
                     version=account.cookie_version,
                     fence=fence,
+                    result=result.kind,
                 )
-                raise RefreshUnavailableError("刷新锁租约已失效")
+                if result.kind not in {"login_expired", "login_failed"} or login_attempt >= 1:
+                    break
+                login_attempt += 1
+                self._telemetry.emit(
+                    "refresh_login_retry",
+                    account_id=account.id,
+                    platform=account.platform,
+                    version=account.cookie_version,
+                    fence=fence,
+                    retry_count=login_attempt,
+                    result="login_expired",
+                )
             lost_task.cancel()
             await asyncio.gather(lost_task, return_exceptions=True)
-            if lost.is_set():
-                self._telemetry.emit(
-                    "refresh_lease_lost",
-                    account_id=account.id,
-                    platform=account.platform,
-                    version=account.cookie_version,
-                    fence=fence,
-                )
-                raise RefreshUnavailableError("刷新锁租约已失效")
-            result = login_task.result()
-            self._telemetry.emit(
-                "refresh_login_completed",
-                account_id=account.id,
-                platform=account.platform,
-                version=account.cookie_version,
-                fence=fence,
-                result=result.kind,
-            )
             if result.kind != "success" or result.cookies is None or result.cookie_header is None:
                 return await self._persist_failure(account, fence, result.kind)
             serialized = json.dumps(result.cookies, separators=(",", ":"))
@@ -280,7 +297,11 @@ class RefreshCoordinator:
             try:
                 return await retry(refreshed_account, credentials)
             except LoginExpiredError:
-                await self._persist_failure(refreshed_account, fence, "login_expired")
+                await self._persist_failure(
+                    refreshed_account,
+                    fence,
+                    "publish_login_expired",
+                )
                 raise LoginExpiredError("媒体账号登录态仍然失效")
         finally:
             for task in (login_task, lost_task):
@@ -458,7 +479,11 @@ class RefreshCoordinator:
         self, account: MediumAccount, fence: int, kind: str
     ) -> tuple[MediumAccount, Credentials]:
         result, code = {
-            "login_expired": ("login_expired", "login_expired"),
+            # A failed login attempt is distinct from an already-issued Cookie
+            # becoming invalid during the publish retry.
+            "login_expired": ("login_failed", "login_failed"),
+            "login_failed": ("login_failed", "login_failed"),
+            "publish_login_expired": ("login_expired", "login_expired"),
             "captcha_required": ("login_expired", "captcha_required"),
             "network_error": ("transient_failure", "login_network_error"),
             "refresh_unavailable": ("transient_failure", "refresh_unavailable"),
@@ -492,6 +517,8 @@ class RefreshCoordinator:
             raise CaptchaRequiredError("登录需要验证码")
         if code == "login_expired":
             raise LoginExpiredError("登录凭据失效")
+        if code == "login_failed":
+            raise LoginFailedError("登录失败")
         if code == "login_network_error":
             raise LoginNetworkError("登录网络请求失败")
         if code == "refresh_unavailable":

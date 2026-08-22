@@ -204,6 +204,7 @@ curl -X POST 'http://127.0.0.1:8002/cnblogs/articles/publish' \
 | --- | --- | --- |
 | `404` | `account_not_found` | 媒体账号不存在 |
 | `409` | `account_unavailable` | 账号未启用、已删除或未配置可用登录凭据 |
+| `409` | `login_failed` | 已执行登录但博客园未接受账号密码 |
 | `409` | `login_expired` | 登录态失效且刷新或重试后仍不可用 |
 | `409` | `captcha_required` | 自动验证码重试次数已耗尽 |
 | `422` | `platform_mismatch` | 账号不是博客园账号 |
