@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from typing import Any
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import httpx
 import markdown
@@ -90,10 +90,16 @@ class HepanPublisher(ArticlePublisher):
             response_query.get("op") == ["edit"]
             and bool(response_query.get("aid"))
         )
-        article_url = (
+        edit_url = (
             response_url
             if response_is_edit_page
             else urljoin(response_url, str(edit_links[0])) if edit_links else None
+        )
+        aid = parse_qs(urlparse(edit_url or "").query).get("aid", [""])[0]
+        article_url = (
+            f"{BASE_URL}/portal.php?{urlencode({'mod': 'view', 'aid': aid})}"
+            if aid
+            else None
         )
         success_markers = ("发布文章成功", "文章发布成功", "发布成功")
         return (

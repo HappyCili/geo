@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 
 import httpx
 
@@ -67,9 +67,9 @@ class CnblogsPublisher(ArticlePublisher):
     def _article_url(payload: Any) -> str | None:
         if not isinstance(payload, dict):
             return None
-        for key in ("url", "postUrl", "link"):
+        for key in ("postUrl", "link", "url"):
             value = payload.get(key)
-            if isinstance(value, str):
+            if isinstance(value, str) and urlparse(value).hostname != "i.cnblogs.com":
                 return value
         data = payload.get("data")
         if isinstance(data, dict):
