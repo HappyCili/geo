@@ -1,0 +1,77 @@
+{
+  "browser": {
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36",
+    "connected_via": "Chrome extension CDP",
+    "tab_url": "https://account.cnblogs.com/signin?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy"
+  },
+  "initialization_sequence": [
+    {
+      "sequence": 149,
+      "method": "GET",
+      "url": "https://account.cnblogs.com/api/options",
+      "status": 200,
+      "purpose": "Return xsrfToken plus MessagePack-encoded keyId, RSA SPKI public key, and server timestamp."
+    },
+    {
+      "sequence": 150,
+      "method": "GET",
+      "url": "https://account.cnblogs.com/api/sign-in?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy",
+      "status": 200,
+      "purpose": "Return sign-in UI options and external providers."
+    },
+    {
+      "sequence": 151,
+      "method": "GET",
+      "url": "https://account.cnblogs.com/api/captcha?timestamp=TIMESTAMP&action=SignIn",
+      "status": 200,
+      "purpose": "Return CAPTCHA provider configuration."
+    }
+  ],
+  "request_replay": {
+    "request_sequence": 447,
+    "request_url": "https://account.cnblogs.com/api/sign-in?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy",
+    "method": "POST",
+    "content_type": "application/vnd.cnblogs.em",
+    "parameter_locations": {
+      "username": "encrypted JSON body",
+      "password": "encrypted JSON body",
+      "captcha": "encrypted JSON body",
+      "isRemember": "encrypted JSON body",
+      "returnUrl": "query string"
+    },
+    "derived_headers": {
+      "X-XSRF-TOKEN": "options.xsrfToken",
+      "Origin": "https://account.cnblogs.com",
+      "Referer": "sign-in page URL"
+    },
+    "captured_body": {
+      "wire_length": 2048,
+      "messagepack_length": 1903,
+      "padding_length": 145,
+      "padding": "zero bytes",
+      "outer_version": 1,
+      "rsa_ciphertext_length": 128,
+      "aes_ciphertext_length": 1767
+    },
+    "dispatch": {
+      "sent_to_origin": false,
+      "blocked_reason": "inspector",
+      "note": "The final request was captured and blocked before reaching CNBlogs."
+    }
+  },
+  "captcha": {
+    "providers": [
+      "aliyunCaptchaV2",
+      "recaptcha"
+    ],
+    "primary_result_field": "captchaVerifyParam",
+    "fallback_result_field": "g-recaptcha-response",
+    "frictionless_result_field": "g-recaptcha-response-v3",
+    "frictionless_action": "SignIn"
+  },
+  "evidence": [
+    "CDP recorded the three initialization requests and the final POST.",
+    "The final request used application/vnd.cnblogs.em and an X-XSRF-TOKEN value sourced from /api/options.",
+    "The intercepted request body decoded as a four-item MessagePack envelope followed by zero padding."
+  ]
+}

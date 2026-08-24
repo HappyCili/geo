@@ -1,0 +1,150 @@
+{
+  "skill": {
+    "name": "js-reverse-automation",
+    "version": "2.0.0"
+  },
+  "input": {
+    "target_url": "https://account.cnblogs.com/signin?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy",
+    "parameters": [
+      "username",
+      "password",
+      "captcha",
+      "isRemember",
+      "returnUrl"
+    ],
+    "environment_constraints": "Pure HTTP runtime; no browser process or plaintext credential persistence."
+  },
+  "trace": {
+    "phase1_file": "phase1_trace.json",
+    "request_url": "https://account.cnblogs.com/api/sign-in?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy",
+    "method": "POST",
+    "content_type": "application/vnd.cnblogs.em"
+  },
+  "parameters": {
+    "username": {
+      "entrypoint": {
+        "type": "method",
+        "path": "SignInComponent.passwordSignIn",
+        "source_hint": "583-es2015.js:byte 11215"
+      },
+      "call_signature": {
+        "args": [
+          "username"
+        ],
+        "returns": "encrypted envelope field",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent"
+      },
+      "dependencies": [
+        "EncryptedHttpService.encrypt"
+      ]
+    },
+    "password": {
+      "entrypoint": {
+        "type": "method",
+        "path": "SignInComponent.passwordSignIn",
+        "source_hint": "583-es2015.js:byte 11215"
+      },
+      "call_signature": {
+        "args": [
+          "password"
+        ],
+        "returns": "encrypted envelope field",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent"
+      },
+      "dependencies": [
+        "EncryptedHttpService.encrypt"
+      ]
+    },
+    "captcha": {
+      "entrypoint": {
+        "type": "callback",
+        "path": "CaptchaService.successCallback",
+        "source_hint": "711-es2015.js"
+      },
+      "call_signature": {
+        "args": [
+          "provider result object"
+        ],
+        "returns": "captcha object",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "CaptchaService"
+      },
+      "dependencies": [
+        "official AliyunCaptchaV2 JavaScript",
+        "FeiLin device collection",
+        "InitCaptchaV3 and VerifyCaptchaV3"
+      ]
+    },
+    "isRemember": {
+      "entrypoint": {
+        "type": "form-control",
+        "path": "SignInComponent.commonForm.isRemember",
+        "source_hint": "583-es2015.js"
+      },
+      "call_signature": {
+        "args": [
+          "boolean"
+        ],
+        "returns": "boolean",
+        "async": false
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent.commonForm"
+      },
+      "dependencies": []
+    },
+    "returnUrl": {
+      "entrypoint": {
+        "type": "query-string",
+        "path": "window.location.search",
+        "source_hint": "583-es2015.js:byte 1945"
+      },
+      "call_signature": {
+        "args": [
+          "absolute URL"
+        ],
+        "returns": "query parameter",
+        "async": false
+      },
+      "runtime": {
+        "bind_this_path": "window.location"
+      },
+      "dependencies": [
+        "URL percent encoding"
+      ]
+    }
+  },
+  "jsrpc": {
+    "status": "not_generated",
+    "reason": "The requested deliverable is a standalone Python client."
+  },
+  "flask": {
+    "status": "not_generated"
+  },
+  "burp": {
+    "status": "not_generated"
+  },
+  "diagnostics": {
+    "status": "ready",
+    "warnings": [
+      "A current Aliyun captchaVerifyParam is generated immediately before a real submission.",
+      "Encryption metadata and XSRF values must be fetched for each prepared session."
+    ],
+    "residual_risks": [
+      "CAPTCHA provider order, dynamic script versions, or response schema may change server-side."
+    ]
+  },
+  "validation_targets": {
+    "python_file": "../../scripts/cnblogs_signin.py",
+    "test_file": "../../tests/test_cnblogs_signin.py",
+    "report_file": "validation_report.json"
+  }
+}

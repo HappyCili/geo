@@ -1,0 +1,15 @@
+{
+  "target_url": "https://account.cnblogs.com/signin?returnUrl=https:%2F%2Fvip.cnblogs.com%2Fmy",
+  "parameters": [
+    "username",
+    "password",
+    "captcha",
+    "isRemember",
+    "returnUrl"
+  ],
+  "environment_constraints": "Pure HTTP only; do not launch a browser or persist plaintext credentials; preserve any MFA response from the sign-in API.",
+  "notes": [
+    "Determine the actual field names from the live request and update the analysis if they differ.",
+    "Generate a browserless Python client that executes the official AliyunCaptchaV2 protocol and preserves MFA responses."
+  ]
+}

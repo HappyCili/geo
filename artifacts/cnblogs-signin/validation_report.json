@@ -1,0 +1,50 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "check": "python:compile",
+      "ok": true,
+      "detail": "scripts/cnblogs_signin.py and tests/test_cnblogs_signin.py compile"
+    },
+    {
+      "check": "pytest:targeted",
+      "ok": true,
+      "detail": "9 tests passed"
+    },
+    {
+      "check": "pytest:full-suite",
+      "ok": true,
+      "detail": "49 tests passed; one pre-existing Starlette/httpx deprecation warning"
+    },
+    {
+      "check": "crypto:round-trip",
+      "ok": true,
+      "detail": "RSA-OAEP key material and 96-bit AES-GCM tag decrypt to the original payload"
+    },
+    {
+      "check": "network:dry-run",
+      "ok": true,
+      "detail": "Live GET preparation completed and produced a 2048-byte request body without POST submission"
+    },
+    {
+      "check": "node:syntax",
+      "ok": true,
+      "detail": "scripts/analyze_aliyun_captcha.mjs passed node --check"
+    },
+    {
+      "check": "captcha:python-http-bridge",
+      "ok": true,
+      "detail": "Mock validation forwarded official JavaScript requests through the same httpx.Client and enforced the Aliyun hostname allowlist"
+    },
+    {
+      "check": "captcha:live-token",
+      "ok": true,
+      "detail": "Live browserless flow completed InitCaptchaV3, Log2/Log3 and VerifyCaptchaV3 with T001, returning a validated captchaVerifyParam"
+    }
+  ],
+  "warnings": [
+    "The full suite retains one pre-existing Starlette/httpx deprecation warning."
+  ],
+  "failures": [],
+  "next_actions": []
+}

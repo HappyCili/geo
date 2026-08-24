@@ -1,0 +1,31 @@
+{
+  "form_status": 200,
+  "prehandle_status": 200,
+  "background_status": 200,
+  "background_file": "artifacts/lieju/verify-background.jpg",
+  "background_sha256": "4ac9d266189d20f07545e177623ffa31dafa61325022e6060abab58d59b1e978",
+  "tdc_status": 200,
+  "tdc_sha256": "d49ca5a5f0b562e92915551bc97d218d2bc912d60a88aec4e16126872158986c",
+  "tdc_collect_length": 2700,
+  "solver_err_no": 0,
+  "solver_point_count": 2,
+  "solver_points": [
+    [
+      333,
+      294
+    ],
+    [
+      313,
+      297
+    ]
+  ],
+  "answer": "263,221",
+  "pow_used": true,
+  "pow_calc_time_ms": 29,
+  "verify_http_status": 200,
+  "verify_error_code": "12",
+  "verify_error_message": "",
+  "ticket_received": false,
+  "randstr_received": false,
+  "accepted": false
+}

@@ -1,0 +1,126 @@
+{
+  "parameters": {
+    "username": {
+      "call_signature": {
+        "args": [
+          "username"
+        ],
+        "returns": "field in encrypted login envelope",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent",
+        "bootstrap": [
+          "GET /api/options",
+          "GET /api/sign-in?returnUrl=...",
+          "GET /api/captcha?timestamp=...&action=SignIn"
+        ],
+        "globals": [
+          "window.crypto.subtle"
+        ]
+      },
+      "dependencies": [
+        "JSON.stringify",
+        "AES-128-GCM",
+        "RSA-OAEP-SHA256",
+        "MessagePack"
+      ]
+    },
+    "password": {
+      "call_signature": {
+        "args": [
+          "password"
+        ],
+        "returns": "field in encrypted login envelope",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent",
+        "bootstrap": [
+          "current /api/options encryption metadata"
+        ],
+        "globals": [
+          "window.crypto.subtle"
+        ]
+      },
+      "dependencies": [
+        "JSON.stringify",
+        "AES-128-GCM",
+        "RSA-OAEP-SHA256",
+        "MessagePack"
+      ]
+    },
+    "captcha": {
+      "call_signature": {
+        "args": [
+          "provider result object"
+        ],
+        "returns": "captcha object in encrypted login envelope",
+        "async": true
+      },
+      "runtime": {
+        "bind_this_path": "CaptchaService",
+        "bootstrap": [
+          "GET /api/captcha?timestamp=...&action=SignIn",
+          "execute Aliyun InitCaptchaV3, device Log2/Log3 and VerifyCaptchaV3"
+        ],
+        "globals": []
+      },
+      "dependencies": [
+        "official AliyunCaptchaV2 JavaScript",
+        "browser API shims for device and interaction collection"
+      ]
+    },
+    "isRemember": {
+      "call_signature": {
+        "args": [
+          "boolean"
+        ],
+        "returns": "isRemember field in encrypted login envelope",
+        "async": false
+      },
+      "runtime": {
+        "bind_this_path": "SignInComponent.commonForm",
+        "bootstrap": [],
+        "globals": []
+      },
+      "dependencies": []
+    },
+    "returnUrl": {
+      "call_signature": {
+        "args": [
+          "absolute HTTP(S) URL"
+        ],
+        "returns": "returnUrl query parameter",
+        "async": false
+      },
+      "runtime": {
+        "bind_this_path": "window.location",
+        "bootstrap": [],
+        "globals": [
+          "window.location.search"
+        ]
+      },
+      "dependencies": [
+        "URL percent encoding"
+      ]
+    }
+  },
+  "envelope": {
+    "plaintext": "UTF-8 JSON of {captcha, username, password, isRemember}",
+    "aes": {
+      "algorithm": "AES-GCM",
+      "key_length_bits": 128,
+      "iv_length_bytes": 12,
+      "tag_length_bits": 96,
+      "additional_data": "uint64 big-endian (Date.now() + timeOffset)"
+    },
+    "rsa": {
+      "algorithm": "RSA-OAEP",
+      "hash": "SHA-256",
+      "plaintext": "MessagePack [aesKey, iv, tag, additionalData]"
+    },
+    "outer_messagepack": "[1, keyId, rsaCiphertext, aesCiphertext]",
+    "wire_buffer": "Underlying MessagePack encoder ArrayBuffer, normally 2048 bytes with zero padding"
+  }
+}

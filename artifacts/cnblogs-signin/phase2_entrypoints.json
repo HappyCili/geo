@@ -1,0 +1,66 @@
+{
+  "parameters": {
+    "username": {
+      "preferred_entrypoint": {
+        "type": "method",
+        "path": "SignInComponent.passwordSignIn -> EncryptedHttpService.encrypt",
+        "source_hint": "583-es2015.js byte 11215; 517-es2015.js byte 9353",
+        "evidence": [
+          "passwordForm defines formControlName=username at 583-es2015.js byte 9355.",
+          "passwordSignIn merges passwordForm.value into the request object at byte 11296."
+        ]
+      },
+      "candidates": []
+    },
+    "password": {
+      "preferred_entrypoint": {
+        "type": "method",
+        "path": "SignInComponent.passwordSignIn -> EncryptedHttpService.encrypt",
+        "source_hint": "583-es2015.js byte 11215; 517-es2015.js byte 9353",
+        "evidence": [
+          "passwordForm defines formControlName=password at 583-es2015.js byte 9355.",
+          "The complete payload is JSON-serialized before AES-GCM encryption."
+        ]
+      },
+      "candidates": []
+    },
+    "captcha": {
+      "preferred_entrypoint": {
+        "type": "callback",
+        "path": "CaptchaService.successCallback -> SignInComponent.passwordSignIn",
+        "source_hint": "711-es2015.js bytes 77522, 145468; 583-es2015.js byte 11296",
+        "evidence": [
+          "AliyunCaptchaV2 returns captchaVerifyParam.",
+          "The reCAPTCHA fallback returns g-recaptcha-response.",
+          "CaptchaService.executeFrictionless merges g-recaptcha-response-v3 using action SignIn.",
+          "passwordSignIn places the provider result under the captcha property."
+        ]
+      },
+      "candidates": []
+    },
+    "isRemember": {
+      "preferred_entrypoint": {
+        "type": "form-control",
+        "path": "SignInComponent.commonForm.isRemember",
+        "source_hint": "583-es2015.js bytes 9355-11296",
+        "evidence": [
+          "The checkbox defaults to true.",
+          "commonForm.value is merged after passwordForm.value."
+        ]
+      },
+      "candidates": []
+    },
+    "returnUrl": {
+      "preferred_entrypoint": {
+        "type": "query-string",
+        "path": "window.location.search",
+        "source_hint": "583-es2015.js bytes 1826-1945",
+        "evidence": [
+          "SignInService appends window.location.search to both GET and POST /api/sign-in.",
+          "returnUrl is not included in the encrypted JSON object."
+        ]
+      },
+      "candidates": []
+    }
+  }
+}

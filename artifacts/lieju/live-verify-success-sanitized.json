@@ -1,0 +1,33 @@
+{
+  "captured_at": "2026-07-30T11:26:56Z",
+  "form": {
+    "url": "https://post.lieju.com/95/13",
+    "authenticated_get_status": 200,
+    "captcha_required": true,
+    "publish_submitted": false
+  },
+  "direct_tdc_vm_attempt": {
+    "verify_status": 200,
+    "error_code": "9",
+    "ticket_present": false,
+    "randstr_present": false,
+    "result": "rejected"
+  },
+  "browser_challenge": {
+    "background_image_size": [672, 390],
+    "background_render_width": 340,
+    "piece_width": 120,
+    "track_min_x": 50,
+    "chaojiying_type": 9602,
+    "selected_gap_point": [586, 274],
+    "logical_answer_x": 526,
+    "browser_drag_distance": 240.83333333333331
+  },
+  "browser_verify": {
+    "atc_yzm": "1",
+    "ticket_present": true,
+    "randstr_present": true,
+    "trigger_text": "验证通过",
+    "result": "success"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "form_url": "https://post.lieju.com/95/13",
+  "solver": {
+    "type": "9602",
+    "selected_gap_point": "347,164",
+    "rejected_candidate": "508,133",
+    "target_answer": "287,93"
+  },
+  "verification": {
+    "atc_yzm": "1",
+    "randstr_present": true,
+    "ticket_present": true,
+    "trigger_text": "验证通过"
+  },
+  "publish_submitted": false
+}
