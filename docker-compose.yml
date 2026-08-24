@@ -6,7 +6,7 @@ services:
     image: media-publisher:latest
     container_name: media-publisher
     ports:
-      - "8000:8000"
+      - "0.0.0.0:8002:8000"
     restart: unless-stopped
     env_file:
       - .env

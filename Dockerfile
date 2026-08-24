@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-slim 
 
 WORKDIR /app
 
@@ -10,15 +10,24 @@ ENV PYTHONUNBUFFERED=1 \
     TZ=Asia/Shanghai
 
 # Node.js is required by the Lieju WAF and CNBlogs CAPTCHA helper scripts.
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y nodejs tzdata \
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt-get \
+        -o Acquire::Retries=3 \
+        -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 \
+        update \
+    && apt-get \
+        -o Acquire::Retries=3 \
+        -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 \
+        install --no-install-recommends -y nodejs tzdata \
     && ln -snf "/usr/share/zoneinfo/${TZ}" /etc/localtime \
     && echo "${TZ}" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.doubanio.com/simple/ --trusted-host pypi.doubanio.com
 
 COPY app ./app
 COPY scripts ./scripts
