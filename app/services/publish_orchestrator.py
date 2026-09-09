@@ -287,7 +287,11 @@ class PublishOrchestrator:
     ) -> tuple[MediumAccount, Credentials]:
         if account.platform not in {"cnblogs", "hepan", "lieju"} or self._refresh is None:
             raise LoginExpiredError("媒体账号登录态已过期")
-        result = await self._refresh.refresh(account)
+        try:
+            result = await self._refresh.refresh(account)
+        except RefreshUnavailableError:
+            # Redis unavailable and no persisted Cookie: attempt a clean login once.
+            result = await self._refresh.refresh(account, force_clean=True)
         if not isinstance(result, tuple):
             raise RefreshUnavailableError("刷新未返回登录凭据")
         return result

@@ -249,7 +249,7 @@ def _parse_form(raw_html: bytes) -> _ParsedForm:
     decoded = raw_html.decode("gb18030", errors="replace")
     document = lxml_html.fromstring(decoded)
     if _is_login_page(document):
-        raise LoginExpiredError("Lieju 登录态已过期")
+        raise LoginExpiredError("Lieju 登录态已过期", retry_safe=True)
 
     forms = document.xpath("//form[contains(@action, 'action=postnew')]")
     if not forms:
@@ -911,7 +911,7 @@ class LiejuPublisher(ArticlePublisher):
                     response.content.decode("gb18030", errors="replace")
                 )
                 if _is_login_page(document):
-                    raise LoginExpiredError("Lieju 登录态已过期")
+                    raise LoginExpiredError("Lieju 登录态已过期", retry_safe=True)
         except httpx.HTTPError as error:
             status = (
                 error.response.status_code
