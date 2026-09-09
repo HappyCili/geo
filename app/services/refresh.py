@@ -72,6 +72,7 @@ class RefreshCoordinator:
         account: MediumAccount,
         *,
         retry: Callable[[MediumAccount, Credentials], Awaitable[PublishResult]] | None = None,
+        force_clean: bool = False,
     ) -> tuple[MediumAccount, Credentials] | PublishResult:
         if self._redis is None:
             self._telemetry.emit(
@@ -81,6 +82,8 @@ class RefreshCoordinator:
                 version=account.cookie_version,
                 trigger="persisted" if account.sync_status == 0 else "runtime",
             )
+            if force_clean:
+                return await self._clean_login(account, retry)
             return await self._fallback_to_persisted(account, retry)
         token = secrets.token_urlsafe(24)
         try:
@@ -96,6 +99,8 @@ class RefreshCoordinator:
                 trigger="persisted" if account.sync_status == 0 else "runtime",
                 error_type=type(error).__name__,
             )
+            if force_clean:
+                return await self._clean_login(account, retry)
             return await self._fallback_to_persisted(account, retry, cause=error)
         if not acquired:
             self._telemetry.emit(
@@ -339,6 +344,52 @@ class RefreshCoordinator:
         if retry is None:
             return account, credentials
         return await retry(account, credentials)
+
+    async def _clean_login(
+        self,
+        account: MediumAccount,
+        retry: Callable[[MediumAccount, Credentials], Awaitable[PublishResult]] | None,
+    ) -> tuple[MediumAccount, Credentials] | PublishResult:
+        try:
+            secret = await self._accounts.get_login_secret(account.id)
+        except LoginCredentialsUnavailableError:
+            secret = self._fallback_login_secrets.get(
+                account.platform, self._fallback_login_secret
+            )
+            if secret is None:
+                raise
+        login = self._login_for_platform(account.platform)
+        if login is None:
+            raise RefreshUnavailableError("登录刷新不可用")
+        result = await self._login_with_account_proxy(login, secret, account)
+        if result.kind != "success" or result.cookies is None or result.cookie_header is None:
+            self._raise_failure(result.kind)
+        credentials = Credentials(
+            result.cookie_header,
+            result.cookies,
+            result.session_id,
+            account.proxy_fingerprint,
+        )
+        refreshed_account = replace(
+            account,
+            cookie=result.cookie_header,
+            cookies=json.dumps(result.cookies, separators=(",", ":")),
+            session_id=result.session_id,
+            sync_status=1,
+            refresh_result="ready",
+            refresh_code=None,
+            cookie_proxy_fingerprint=account.proxy_fingerprint,
+        )
+        self._telemetry.emit(
+            "refresh_clean_login",
+            account_id=account.id,
+            platform=account.platform,
+            version=account.cookie_version,
+            result="ready",
+        )
+        if retry is None:
+            return refreshed_account, credentials
+        return await retry(refreshed_account, credentials)
 
     def _login_for_platform(self, platform: str) -> LoginProvider | None:
         if isinstance(self._login, Mapping):

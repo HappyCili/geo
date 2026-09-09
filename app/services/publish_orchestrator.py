@@ -260,7 +260,7 @@ class PublishOrchestrator:
             )
             return result
 
-        result = await self._refresh.refresh(account, retry=retry)
+        result = await self._refresh.refresh(account, retry=retry, force_clean=True)
         if not isinstance(result, PublishResult):
             raise RefreshUnavailableError("刷新后未执行发布重试")
         return result
