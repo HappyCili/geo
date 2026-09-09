@@ -109,6 +109,20 @@ class CookieStore:
         )
         return credentials
 
+    async def load_persisted(self, account: MediumAccount) -> Credentials:
+        """读取数据库中仍保留的旧 Cookie，不依赖刷新状态或 Redis。"""
+        source = account
+        if self._payload_loader is not None:
+            source = await self._payload_loader(account.id)
+            if source.cookie_version != account.cookie_version:
+                raise LoginExpiredError("媒体账号 Cookie 版本已变化")
+            if source.cookie_proxy_fingerprint != account.proxy_fingerprint:
+                raise LoginExpiredError("媒体账号代理已变化，需要刷新登录态")
+        try:
+            return get_credentials(source)
+        except CredentialError as error:
+            raise LoginExpiredError("媒体账号未配置可用 Cookie") from error
+
     @staticmethod
     def _valid_cookie_map(value: object) -> bool:
         return isinstance(value, dict) and all(

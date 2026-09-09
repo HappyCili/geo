@@ -81,7 +81,7 @@ class RefreshCoordinator:
                 version=account.cookie_version,
                 trigger="persisted" if account.sync_status == 0 else "runtime",
             )
-            raise RefreshUnavailableError("Redis 刷新锁不可用")
+            return await self._fallback_to_persisted(account, retry)
         token = secrets.token_urlsafe(24)
         try:
             acquired = await self._redis.set(
@@ -96,7 +96,7 @@ class RefreshCoordinator:
                 trigger="persisted" if account.sync_status == 0 else "runtime",
                 error_type=type(error).__name__,
             )
-            raise RefreshUnavailableError("Redis 刷新锁不可用") from error
+            return await self._fallback_to_persisted(account, retry, cause=error)
         if not acquired:
             self._telemetry.emit(
                 "refresh_waiter",
@@ -314,6 +314,31 @@ class RefreshCoordinator:
             renew_task.cancel()
             await asyncio.gather(renew_task, return_exceptions=True)
             await self._release(account, token)
+
+    async def _fallback_to_persisted(
+        self,
+        account: MediumAccount,
+        retry: Callable[[MediumAccount, Credentials], Awaitable[PublishResult]] | None,
+        *,
+        cause: BaseException | None = None,
+    ) -> tuple[MediumAccount, Credentials] | PublishResult:
+        """Redis 不可用时，最后尝试一次仍保存在数据库中的登录态。"""
+        try:
+            credentials = await self._cookies.load_persisted(account)
+        except LoginExpiredError:
+            if cause is None:
+                raise RefreshUnavailableError("Redis 刷新锁不可用")
+            raise RefreshUnavailableError("Redis 刷新锁不可用") from cause
+        self._telemetry.emit(
+            "refresh_persisted_fallback",
+            account_id=account.id,
+            platform=account.platform,
+            version=account.cookie_version,
+            result="ready",
+        )
+        if retry is None:
+            return account, credentials
+        return await retry(account, credentials)
 
     def _login_for_platform(self, platform: str) -> LoginProvider | None:
         if isinstance(self._login, Mapping):
