@@ -672,7 +672,7 @@ class CnblogsLoginProvider:
                 "--credentials-stdin",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=None,
+                stderr=asyncio.subprocess.DEVNULL,
                 env=self._child_environment(proxy),
                 cwd=str(self._project_root),
                 start_new_session=True,

@@ -32,10 +32,11 @@ const captchaPageUrl = process.env.ALIYUN_PAGE_URL
   || "https://account.cnblogs.com/signin";
 const captchaPageLocation = new URL(captchaPageUrl);
 const captchaOrigin = captchaPageLocation.origin;
-const userAgent = (
+const browserMajorVersion = process.env.ALIYUN_BROWSER_MAJOR_VERSION || "152";
+const userAgent = process.env.ALIYUN_USER_AGENT || (
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
   + "AppleWebKit/537.36 (KHTML, like Gecko) "
-  + "Chrome/143.0.0.0 Safari/537.36"
+  + `Chrome/${browserMajorVersion}.0.0.0 Safari/537.36`
 );
 if (!sourcePath) {
   throw new Error("usage: analyze_aliyun_captcha.mjs ALIYUN_CAPTCHA_JS");
@@ -51,6 +52,9 @@ if (!/^[A-Za-z0-9_-]{1,128}$/.test(sceneId)) {
 }
 if (captchaRegion !== "cn") {
   throw new Error("only the Aliyun cn region is supported");
+}
+if (!/^\d{2,3}$/.test(browserMajorVersion)) {
+  throw new Error("ALIYUN_BROWSER_MAJOR_VERSION has an invalid format");
 }
 if (!new Set(["analysis", "captcha"]).has(outputMode)) {
   throw new Error("ALIYUN_OUTPUT_MODE must be analysis or captcha");
@@ -256,6 +260,16 @@ const formatConsoleValue = (value) => String(value?.stack || value)
   .filter((line) => line.length < 2_000)
   .slice(0, 20)
   .join("\n");
+const formatErrorValue = (value) => {
+  if (value && typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return formatConsoleValue(value);
+    }
+  }
+  return formatConsoleValue(value);
+};
 const runtimeConsole = {
   debug() {},
   info() {},
@@ -298,6 +312,11 @@ function makeMouseEvent(type, target, buttons, x = 14, y = 14) {
     which: 1,
   });
 }
+
+const wait = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
+const randomInteger = (minimum, maximum) => (
+  Math.floor(Math.random() * (maximum - minimum + 1)) + minimum
+);
 
 function instrumentDynamicCalls(dynamicSource) {
   if (!diagnoseDynamicCalls) return dynamicSource;
@@ -612,8 +631,7 @@ Element.prototype = {
     for (const match of String(html).matchAll(/id=["']([^"']+)["']/g)) {
       const child = new Element();
       child.id = match[1];
-      elements.set(`#${child.id}`, child);
-      this.children.push(child);
+      this.appendChild(child);
     }
   },
   matches(selector) {
@@ -631,6 +649,11 @@ Element.prototype = {
   removeChild(child) {
     const index = this.children.indexOf(child);
     if (index >= 0) this.children.splice(index, 1);
+    for (const descendant of [child, ...child.getElementsByTagName("*")]) {
+      if (descendant.id && elements.get(`#${descendant.id}`) === descendant) {
+        elements.delete(`#${descendant.id}`);
+      }
+    }
     child.parentNode = null;
     child.parentElement = null;
     return child;
@@ -663,7 +686,7 @@ Object.defineProperties(Element.prototype, {
     get() { return this._innerHTML || ""; },
     set(value) {
       this._innerHTML = String(value);
-      this.children.length = 0;
+      for (const child of [...this.children]) this.removeChild(child);
       this.insertAdjacentHTML("beforeend", value);
     },
   },
@@ -1013,43 +1036,92 @@ document.body.appendChild(captchaElement);
 document.body.appendChild(captchaButton);
 
 async function runLoginActivity() {
-  const usernameInput = document.createElement("input");
-  usernameInput.id = "signin-username";
-  usernameInput.type = "text";
-  usernameInput.value = "";
-  captchaElement.appendChild(usernameInput);
-
-  usernameInput.dispatchEvent(makeSyntheticEvent("focusin", usernameInput));
-  const keys = [
-    ["u", "KeyU", 85],
-    ["s", "KeyS", 83],
-    ["e", "KeyE", 69],
-    ["r", "KeyR", 82],
+  const inputProfiles = [
+    { id: "signin-username", length: randomInteger(7, 10), type: "text" },
+    { id: "signin-password", length: randomInteger(10, 14), type: "password" },
   ];
-  for (const [key, code, keyCode] of keys) {
-    usernameInput.value += key;
-    usernameInput.dispatchEvent(makeSyntheticEvent("keyup", usernameInput, {
-      code,
-      key,
-      keyCode,
-      which: keyCode,
-    }));
-    await new Promise((resolve) => setTimeout(resolve, 38));
+  await wait(randomInteger(240, 420));
+  for (const profile of inputProfiles) {
+    const input = document.createElement("input");
+    input.id = profile.id;
+    input.type = profile.type;
+    input.value = "";
+    captchaElement.appendChild(input);
+    input.dispatchEvent(makeSyntheticEvent("focus", input, { bubbles: false }));
+    input.dispatchEvent(makeSyntheticEvent("focusin", input));
+    for (let index = 0; index < profile.length; index += 1) {
+      const keyCode = randomInteger(65, 90);
+      const key = String.fromCharCode(keyCode).toLowerCase();
+      const keyboardProperties = {
+        code: `Key${key.toUpperCase()}`,
+        key,
+        keyCode,
+        which: keyCode,
+      };
+      input.dispatchEvent(makeSyntheticEvent("keydown", input, keyboardProperties));
+      input.value += key;
+      input.dispatchEvent(makeSyntheticEvent("input", input, {
+        data: key,
+        inputType: "insertText",
+      }));
+      input.dispatchEvent(makeSyntheticEvent("keyup", input, keyboardProperties));
+      await wait(randomInteger(55, 135));
+    }
+    input.dispatchEvent(makeSyntheticEvent("change", input));
+    input.dispatchEvent(makeSyntheticEvent("focusout", input));
+    input.dispatchEvent(makeSyntheticEvent("blur", input, { bubbles: false }));
+    await wait(randomInteger(160, 360));
   }
-  usernameInput.dispatchEvent(makeSyntheticEvent("focusout", usernameInput));
 
-  const points = [[86, 118], [121, 146], [166, 181], [213, 217], [267, 253]];
-  for (const [x, y] of points) {
+  const pointCount = randomInteger(10, 15);
+  for (let index = 0; index < pointCount; index += 1) {
+    const progress = (index + 1) / pointCount;
+    const x = Math.round(45 + (progress * 520) + randomInteger(-8, 8));
+    const y = Math.round(95 + (progress * 230) + randomInteger(-12, 12));
     document.body.dispatchEvent(makeMouseEvent("mousemove", document.body, 0, x, y));
-    await new Promise((resolve) => setTimeout(resolve, 24));
+    await wait(randomInteger(18, 48));
   }
-  document.documentElement.scrollTop = 12;
+  const scrollTop = randomInteger(8, 24);
+  document.documentElement.scrollTop = scrollTop;
   document.documentElement.dispatchEvent(
     makeSyntheticEvent("scroll", document.documentElement, {
       scrollX: 0,
-      scrollY: 12,
+      scrollY: scrollTop,
     }),
   );
+  await wait(randomInteger(220, 420));
+}
+
+async function waitForAttachedElement(selector, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const element = elements.get(selector);
+    if (element?.parentNode) return element;
+    await wait(100);
+  }
+  return null;
+}
+
+async function clickCheckboxNaturally(checkbox) {
+  const bounds = checkbox.getBoundingClientRect();
+  const targetX = Math.round(bounds.left + Math.min(20, bounds.width / 2));
+  const targetY = Math.round(bounds.top + Math.min(20, bounds.height / 2));
+  const steps = randomInteger(8, 12);
+  for (let index = 0; index < steps; index += 1) {
+    const progress = (index + 1) / steps;
+    const x = Math.round(80 + ((targetX - 80) * progress) + randomInteger(-3, 3));
+    const y = Math.round(120 + ((targetY - 120) * progress) + randomInteger(-3, 3));
+    document.body.dispatchEvent(makeMouseEvent("mousemove", document.body, 0, x, y));
+    await wait(randomInteger(20, 48));
+  }
+  checkbox.dispatchEvent(makeMouseEvent("mouseover", checkbox, 0, targetX, targetY));
+  checkbox.dispatchEvent(makeMouseEvent("mouseenter", checkbox, 0, targetX, targetY));
+  checkbox.dispatchEvent(makeMouseEvent("mousemove", checkbox, 0, targetX, targetY));
+  await wait(randomInteger(90, 180));
+  checkbox.dispatchEvent(makeMouseEvent("mousedown", checkbox, 1, targetX, targetY));
+  await wait(randomInteger(85, 160));
+  checkbox.dispatchEvent(makeMouseEvent("mouseup", checkbox, 0, targetX, targetY));
+  checkbox.dispatchEvent(makeMouseEvent("click", checkbox, 0, targetX, targetY));
 }
 
 class FakeXMLHttpRequest {
@@ -1209,19 +1281,28 @@ const window = {
     appName: "Netscape",
     appVersion: "5.0 (Macintosh; Intel Mac OS X 10_15_7)",
     cookieEnabled: true,
-    deviceMemory: 8,
+    deviceMemory: 16,
     doNotTrack: null,
-    hardwareConcurrency: 8,
+    hardwareConcurrency: 10,
     javaEnabled() { return false; },
     language: "zh-CN",
-    languages: ["zh-CN", "zh", "en"],
+    languages: ["zh-CN"],
     maxTouchPoints: 0,
-    mimeTypes: [],
+    mimeTypes: [
+      { description: "Portable Document Format", suffixes: "pdf", type: "application/pdf" },
+      { description: "Portable Document Format", suffixes: "pdf", type: "text/pdf" },
+    ],
     onLine: true,
     oscpu: "Intel Mac OS X 10_15_7",
     pdfViewerEnabled: true,
     platform: "MacIntel",
-    plugins: [],
+    plugins: [
+      { filename: "internal-pdf-viewer", length: 2, name: "PDF Viewer" },
+      { filename: "internal-pdf-viewer", length: 2, name: "Chrome PDF Viewer" },
+      { filename: "internal-pdf-viewer", length: 2, name: "Chromium PDF Viewer" },
+      { filename: "internal-pdf-viewer", length: 2, name: "Microsoft Edge PDF Viewer" },
+      { filename: "internal-pdf-viewer", length: 2, name: "WebKit built-in PDF" },
+    ],
     product: "Gecko",
     productSub: "20030107",
     vendor: "Google Inc.",
@@ -1239,12 +1320,29 @@ const window = {
     storage: { async estimate() { return { quota: 0, usage: 0 }; } },
     userAgentData: {
       brands: [
-        { brand: "Chromium", version: "143" },
-        { brand: "Google Chrome", version: "143" },
+        { brand: "Chromium", version: browserMajorVersion },
+        { brand: "Not?A_Brand", version: "24" },
+        { brand: "Google Chrome", version: browserMajorVersion },
       ],
       mobile: false,
       platform: "macOS",
-      async getHighEntropyValues() { return {}; },
+      async getHighEntropyValues() {
+        return {
+          architecture: "arm",
+          bitness: "64",
+          brands: this.brands,
+          fullVersionList: this.brands.map(({ brand, version }) => ({
+            brand,
+            version: brand === "Not?A_Brand" ? "24.0.0.0" : `${version}.0.0.0`,
+          })),
+          mobile: false,
+          model: "",
+          platform: this.platform,
+          platformVersion: "26.2.0",
+          uaFullVersion: `${browserMajorVersion}.0.0.0`,
+          wow64: false,
+        };
+      },
     },
     webkitTemporaryStorage: {
       queryUsageAndQuota(success) { success(0, 10 * 1024 * 1024 * 1024); },
@@ -1252,18 +1350,19 @@ const window = {
     userAgent,
   },
   screen: {
-    availHeight: 1055,
-    availWidth: 1728,
-    colorDepth: 24,
-    height: 1117,
-    width: 1728,
+    availHeight: 838,
+    availWidth: 1470,
+    colorDepth: 30,
+    height: 956,
+    pixelDepth: 30,
+    width: 1470,
     orientation: { angle: 0, type: "landscape-primary" },
   },
   devicePixelRatio: 2,
-  innerHeight: 1055,
-  innerWidth: 1728,
-  outerHeight: 1117,
-  outerWidth: 1728,
+  innerHeight: 720,
+  innerWidth: 1280,
+  outerHeight: 838,
+  outerWidth: 1462,
   history: Object.assign(new History(), {
     length: 1,
     pushState() {},
@@ -1791,7 +1890,7 @@ let initProbeActivityState = "not-run";
 
 async function waitForInitProbeSuccess(timeoutMs) {
   const deadline = Date.now() + timeoutMs;
-  while (!initProbeSuccessToken && !initProbeError && Date.now() < deadline) {
+  while (!initProbeSuccessToken && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return Boolean(initProbeSuccessToken);
@@ -1800,9 +1899,9 @@ async function waitForInitProbeSuccess(timeoutMs) {
 if (runInitProbe) {
   try {
     context.__ALIYUN_INIT_CALLBACKS = {
-      fail(error) { initProbeError ||= String(error); },
+      fail(error) { initProbeError ||= formatErrorValue(error); },
       getInstance(instance) { initProbeInstance = instance; },
-      onError(error) { initProbeError ||= String(error); },
+      onError(error) { initProbeError ||= formatErrorValue(error); },
       success(token) { initProbeSuccessToken = token; },
     };
     context.__ALIYUN_RUNTIME_CONFIG = {
@@ -1834,7 +1933,7 @@ if (runInitProbe) {
       probe,
       new Promise((resolve) => setTimeout(resolve, 15_000)),
     ]);
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await wait(250);
     if (simulateActivity) {
       initProbeActivityState = "running";
       await runLoginActivity();
@@ -1844,22 +1943,22 @@ if (runInitProbe) {
       initProbeVerificationState = "pending";
       initProbeInstance?.show?.();
       captchaButton.click();
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await wait(1_500);
       initProbeVerificationState = initProbeSuccessToken
         ? "succeeded"
         : elements.has("#aliyunCaptcha-checkbox-icon")
           ? "challenge"
           : "completed";
       if (runChallengeProbe) {
-        const checkbox = elements.get("#aliyunCaptcha-checkbox-icon");
+        const checkbox = await waitForAttachedElement(
+          "#aliyunCaptcha-checkbox-icon",
+          4_000,
+        );
         if (!checkbox) {
           initProbeChallengeState = "checkbox-not-found";
         } else {
           initProbeChallengeState = "dispatched";
-          checkbox.dispatchEvent(makeMouseEvent("mousedown", checkbox, 1));
-          await new Promise((resolve) => setTimeout(resolve, 96));
-          checkbox.dispatchEvent(makeMouseEvent("mouseup", checkbox, 0));
-          checkbox.dispatchEvent(makeMouseEvent("click", checkbox, 0));
+          await clickCheckboxNaturally(checkbox);
           const verified = await waitForInitProbeSuccess(challengeTimeoutMs);
           initProbeChallengeState = verified ? "succeeded" : "timeout";
           initProbeVerificationState = verified ? "succeeded" : "challenge";

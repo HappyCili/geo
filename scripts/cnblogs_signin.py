@@ -26,12 +26,23 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
 
+# Allow the documented ``python scripts/cnblogs_signin.py`` invocation from any
+# working directory while keeping the subprocess project root explicit.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 import httpx
 import msgpack
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
+from app.api.platform.cnblogs.browser_profile import (
+    BROWSER_MAJOR_VERSION,
+    CLIENT_HINT_HEADERS,
+    USER_AGENT,
+)
 from app.utils.request import SyncRequestAdapter
 
 
@@ -41,7 +52,6 @@ PUBLISH_HOST = "i.cnblogs.com"
 PUBLISH_WARMUP_URL = f"https://{PUBLISH_HOST}/articles/edit"
 CONTENT_TYPE = "application/vnd.cnblogs.em"
 INITIAL_MSGPACK_BUFFER_SIZE = 2048
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ALIYUN_RUNTIME_PATH = PROJECT_ROOT / "scripts" / "analyze_aliyun_captcha.mjs"
 ALIYUN_CAPTCHA_JS_PATH = (
     PROJECT_ROOT / "artifacts" / "cnblogs-signin" / "aliyun" / "AliyunCaptcha.js"
@@ -50,11 +60,6 @@ CNBLOGS_CAPTCHA_JS_PATH = (
     PROJECT_ROOT / "artifacts" / "cnblogs-signin" / "711-es2015.js"
 )
 ALIYUN_HTTP_REQUEST_PREFIX = "ALIYUN_HTTP_REQUEST "
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/143.0.0.0 Safari/537.36"
-)
 
 CAPTCHA_PROVIDER_NAMES = {
     0: "none",
@@ -447,6 +452,8 @@ def _aliyun_runtime_environment(
             "ALIYUN_SCENE_ID": config.scene_id,
             "ALIYUN_SIMULATE_ACTIVITY": "1",
             "ALIYUN_CHALLENGE_TIMEOUT_MS": "8000",
+            "ALIYUN_BROWSER_MAJOR_VERSION": BROWSER_MAJOR_VERSION,
+            "ALIYUN_USER_AGENT": USER_AGENT,
         }
     )
     return environment
@@ -684,6 +691,7 @@ def submit_signin_with_retries(
         "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
         "User-Agent": USER_AGENT,
+        **CLIENT_HINT_HEADERS,
     }
     result: dict[str, Any] | None = None
     for attempt in range(1, captcha_attempts + 1):
@@ -832,6 +840,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "User-Agent": USER_AGENT,
+            **CLIENT_HINT_HEADERS,
         }
         with httpx.Client(
             headers=headers,

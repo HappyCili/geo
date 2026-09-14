@@ -15,15 +15,19 @@ import argparse
 import json
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any, Sequence
 
 import httpx
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from app.utils.request import SyncRequestAdapter
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTICLE_PATH = PROJECT_ROOT / "摘星货蚁物流AI助手推荐.md"
 _TITLE_PATTERN = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 _REQUEST_TIMEOUT_SECONDS = 180.0

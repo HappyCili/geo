@@ -8,17 +8,17 @@ from urllib.parse import unquote, urlparse
 
 import httpx
 
+from app.api.platform.cnblogs.browser_profile import CLIENT_HINT_HEADERS, USER_AGENT
 from app.config import get_settings
 from app.domain import AccountProxy, Credentials, PlatformFieldValue, PublishResult
 from app.errors import LoginExpiredError, PublisherConfigurationError, UpstreamPublishError
+from app.schemas import ContentType
 from app.utils.publisher_contract import ArticlePublisher
 from app.utils.proxy import httpx_client_kwargs
-from app.schemas import ContentType
 
 
 API_URL = "https://i.cnblogs.com/api/posts"
 REFERER = "https://i.cnblogs.com/articles/edit"
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/143.0.0.0 Safari/537.36"
 SESSION_VALIDATION_ERROR = "会话校验失败"
 
 
@@ -59,6 +59,7 @@ class CnblogsPublisher(ArticlePublisher):
             "Origin": "https://i.cnblogs.com",
             "Referer": REFERER,
             "User-Agent": USER_AGENT,
+            **CLIENT_HINT_HEADERS,
             "X-XSRF-TOKEN": unquote(xsrf_token),
             "sessionId": credentials.session_id or str(uuid.uuid4()),
         }
